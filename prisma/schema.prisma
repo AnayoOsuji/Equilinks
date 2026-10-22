@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SCHOOL_ADMIN
+  EQUILINKS_ADMIN
+  EDUCATOR
+  SPECIALIST
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING_INVITE
+  INACTIVE
+}
+
+enum ParentRelationship {
+  MOTHER
+  FATHER
+  GUARDIAN
+  CAREGIVER
+}
+
+enum PortalAccess {
+  FULL_ACCESS
+  READ_ONLY
+  INVITED
+}
+
+enum SchoolStatus {
+  ACTIVE
+  REVIEW
+  INACTIVE
+}
+
+model School {
+  id              String       @id @default(cuid())
+  name            String
+  code            String?
+  type            String?      @default("Inclusive Campus")
+  address         String
+  email           String
+  phone           String
+  logo            String?
+  leadAdmin       String?
+  status          SchoolStatus @default(ACTIVE)
+  specializations String[]     @default([])
+
+  users   User[]
+  parents Parent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("schools")
+}
+
+model User {
+  id         String     @id @default(cuid())
+  firstname  String
+  surname    String
+  email      String     @unique
+  password   String?
+  avatar     String?
+  role       Role       @default(SCHOOL_ADMIN)
+  status     UserStatus @default(ACTIVE)
+  lastActive DateTime?  @default(now())
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+
+  // In case of a student user, link to parent/guardian
+  studentOf Parent[] @relation("StudentParents")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Parent {
+  id                String             @id @default(cuid())
+  firstname         String
+  surname           String
+  email             String             @unique
+  phone             String?
+  avatar            String?
+  studentName       String // Learner name reference
+  relationship      ParentRelationship @default(MOTHER)
+  portalAccess      PortalAccess       @default(FULL_ACCESS)
+  status            UserStatus         @default(ACTIVE)
+  lastCommunication DateTime?          @default(now())
+  notes             String?
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+
+  // Optional direct link to enrolled student User record
+  studentId String?
+  student   User?   @relation("StudentParents", fields: [studentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("parents")
+}
