@@ -1,4 +1,4 @@
-import { io } from "next/cache";
+import { connection } from "next/server";
 import type { Role, UserStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
@@ -97,7 +97,7 @@ function formatLastActive(value: Date | null) {
 }
 
 export async function getAdminUsers(): Promise<AdminUser[]> {
-  await io();
+  await connection();
 
   const rows = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
@@ -120,7 +120,7 @@ const userSelect = {
 } as const;
 
 export async function getSchoolNames(): Promise<string[]> {
-  await io();
+  await connection();
 
   const schools = await prisma.school.findMany({
     orderBy: { name: "asc" },
