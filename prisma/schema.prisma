@@ -11,6 +11,7 @@ datasource db {
 enum Role {
   SCHOOL_ADMIN
   EQUILINKS_ADMIN
+  SUPER_ADMIN
   EDUCATOR
   SPECIALIST
   STUDENT
@@ -54,8 +55,10 @@ model School {
   status          SchoolStatus @default(ACTIVE)
   specializations String[]     @default([])
 
-  users   User[]
-  parents Parent[]
+  users    User[]
+  parents  Parent[]
+  classes  Class[]
+  students Student[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -77,8 +80,8 @@ model User {
   schoolId String?
   school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
 
-  // In case of a student user, link to parent/guardian
-  studentOf Parent[] @relation("StudentParents")
+  classes        Class[]   @relation("ClassEducator")
+  studentProfile Student?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -103,12 +106,58 @@ model Parent {
   schoolId String?
   school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
 
-  // Optional direct link to enrolled student User record
   studentId String?
-  student   User?   @relation("StudentParents", fields: [studentId], references: [id], onDelete: SetNull)
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("parents")
+}
+
+model Class {
+  id    String  @id @default(cuid())
+  name  String
+  grade String?
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+
+  educatorId String?
+  educator   User?   @relation("ClassEducator", fields: [educatorId], references: [id], onDelete: SetNull)
+
+  students Student[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@map("classes")
+}
+
+model Student {
+  id        String     @id @default(cuid())
+  firstname String
+  surname   String
+  email     String?    @unique
+  avatar    String?
+  status    UserStatus @default(ACTIVE)
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  parents Parent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([classId])
+  @@map("students")
 }

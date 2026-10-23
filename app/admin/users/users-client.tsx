@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AdminUser } from "@/lib/admin-users";
+import { signOut } from "@/app/login/actions";
 import { createAdminUser, deleteAdminUser, updateAdminUser } from "./actions";
 import "../admin.css";
 import {
@@ -48,13 +49,21 @@ const emptyUserForm = {
 export default function UsersClient({
   initialUsers,
   schools,
+  workspace = "admin",
 }: {
   initialUsers: AdminUser[];
   schools: string[];
+  workspace?: "admin" | "super-admin";
 }) {
   const router = useRouter();
   const schoolChoices = schools.length > 0 ? schools : fallbackSchools;
+  const directoryRoot = workspace === "super-admin" ? "/super-admin" : "/admin";
   const [users, setUsers] = useState<AdminUser[]>(initialUsers);
+  const directoryUsers = useMemo(
+    () =>
+      workspace === "super-admin" ? users : users.filter((user) => user.role !== "Super Admin"),
+    [users, workspace],
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [selectedSchool, setSelectedSchool] = useState<string>("all");
@@ -79,33 +88,41 @@ export default function UsersClient({
 
   // Filtered users
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+    return directoryUsers.filter((u) => {
       const matchSearch =
         u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.school.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchSearch) return false;
-      if (selectedRole !== "all" && u.role !== selectedRole) return false;
+      if (
+        selectedRole !== "all" &&
+        u.role !== selectedRole &&
+        !(workspace === "super-admin" && selectedRole === "School Admin" && u.role === "Super Admin")
+      ) {
+        return false;
+      }
       if (selectedSchool !== "all" && u.school !== selectedSchool) return false;
       return true;
     });
-  }, [users, searchQuery, selectedRole, selectedSchool]);
+  }, [directoryUsers, searchQuery, selectedRole, selectedSchool, workspace]);
 
   // Counts
   const counts = useMemo(() => {
     return {
-      all: users.length,
-      student: users.filter((u) => u.role === "Student").length,
-      educator: users.filter((u) => u.role === "Educator").length,
-      specialist: users.filter((u) => u.role === "Specialist").length,
-      admin: users.filter((u) => u.role === "School Admin" || u.role === "Equilinks Admin").length,
+      all: directoryUsers.length,
+      student: directoryUsers.filter((u) => u.role === "Student").length,
+      educator: directoryUsers.filter((u) => u.role === "Educator").length,
+      specialist: directoryUsers.filter((u) => u.role === "Specialist").length,
+      admin: directoryUsers.filter(
+        (u) => u.role === "School Admin" || u.role === "Equilinks Admin" || u.role === "Super Admin",
+      ).length,
     };
-  }, [users]);
+  }, [directoryUsers]);
 
   const campusNames = useMemo(() => {
-    return Array.from(new Set(users.map((user) => user.school).filter((school) => school && school !== "Unassigned"))).sort();
-  }, [users]);
+    return Array.from(new Set(directoryUsers.map((user) => user.school).filter((school) => school && school !== "Unassigned"))).sort();
+  }, [directoryUsers]);
 
   const resetUserForm = () => {
     setNewUser({
@@ -248,7 +265,7 @@ export default function UsersClient({
 
           <p className="nav-section-title">WORKSPACE</p>
           <nav className="workspace-nav" aria-label="Primary Navigation">
-            <Link className="workspace-link" href="/admin">
+            <Link className="workspace-link" href={directoryRoot}>
               <Layers size={18} />
               <span>Overview</span>
             </Link>
@@ -257,17 +274,17 @@ export default function UsersClient({
               <span>Schools</span>
               <span className="nav-count">3</span>
             </Link>
-            <Link className="workspace-link is-active" href="/admin/users">
+            <Link className="workspace-link is-active" href={`${directoryRoot}/users`}>
               <Users size={18} />
               <span>Users</span>
-              <span className="nav-count">{users.length}</span>
+              <span className="nav-count">{directoryUsers.length}</span>
             </Link>
             <Link className="workspace-link" href="/admin/parents">
               <HeartHandshake size={18} />
               <span>Parents</span>
               <span className="nav-count">94</span>
             </Link>
-            <Link className="workspace-link" href="/admin#settings">
+            <Link className="workspace-link" href={`${directoryRoot}#settings`}>
               <Settings size={18} />
               <span>Settings</span>
             </Link>
@@ -283,9 +300,16 @@ export default function UsersClient({
             </span>
             <div className="profile-copy">
               <strong>Maya Chen</strong>
-              <small>Administrator</small>
+              <small>{workspace === "super-admin" ? "Super Admin" : "Administrator"}</small>
             </div>
           </div>
+          {workspace === "super-admin" ? (
+            <form action={signOut}>
+              <button className="sign-out-button" type="submit">
+                Sign out
+              </button>
+            </form>
+          ) : null}
         </div>
       </aside>
 
@@ -303,8 +327,8 @@ export default function UsersClient({
               <Menu size={18} />
             </button>
             <div className="breadcrumb">
-              <Link href="/admin" style={{ color: "var(--admin-muted)" }}>
-                Admin
+              <Link href={directoryRoot} style={{ color: "var(--admin-muted)" }}>
+                {workspace === "super-admin" ? "Super Admin" : "Admin"}
               </Link>
               <b>/</b>
               <strong>Users</strong>
@@ -371,7 +395,7 @@ export default function UsersClient({
                   <Users size={17} />
                 </span>
               </div>
-              <div className="metric-number">{users.length}</div>
+              <div className="metric-number">{directoryUsers.length}</div>
               <div className="metric-footer">
                 <span className="metric-up">Active</span>
                 <span>across {campusNames.length} {campusNames.length === 1 ? "school" : "schools"}</span>
@@ -635,7 +659,7 @@ export default function UsersClient({
           {/* Minimal Footer */}
           <footer className="dashboard-footer" style={{ borderTop: "1px solid var(--admin-border)", paddingTop: "18px" }}>
             <span>Equilinks User Management</span>
-            <span>Total: {users.length} registered accounts</span>
+            <span>Total: {directoryUsers.length} registered accounts</span>
           </footer>
         </div>
       </main>
@@ -853,6 +877,7 @@ export default function UsersClient({
                     >
                       <option value="School Admin">School Admin</option>
                       <option value="Equilinks Admin">Equilinks Admin</option>
+                      <option value="Super Admin">Super Admin</option>
                       <option value="Educator">Educator</option>
                       <option value="Specialist">Specialist</option>
                       <option value="Student">Student</option>

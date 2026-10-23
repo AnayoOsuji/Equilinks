@@ -10,6 +10,7 @@ import { toAdminUser, userSelect, type AdminUser } from "@/lib/admin-users";
 const roleValues: Record<AdminUser["role"], Role> = {
   "School Admin": "SCHOOL_ADMIN",
   "Equilinks Admin": "EQUILINKS_ADMIN",
+  "Super Admin": "SUPER_ADMIN",
   Educator: "EDUCATOR",
   Specialist: "SPECIALIST",
   Student: "STUDENT",

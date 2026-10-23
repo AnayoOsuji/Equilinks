@@ -603,7 +603,7 @@ export default function SchoolsPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header" style={{ flexShrink: 0 }}>
-              <h3>Register New Campus</h3>
+              <h3>Register New school</h3>
               <button
                 className="drawer-close"
                 onClick={() => setIsAddModalOpen(false)}
@@ -762,7 +762,7 @@ export default function SchoolsPage() {
                   Cancel
                 </button>
                 <button type="submit" className="add-student-button">
-                  <CheckCircle2 size={16} /> Save Campus
+                  <CheckCircle2 size={16} /> save school
                 </button>
               </div>
             </form>

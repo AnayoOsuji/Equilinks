@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import type { Role, UserStatus } from "@prisma/client";
+import { requireSuperAdmin } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 export interface AdminUser {
@@ -9,7 +10,7 @@ export interface AdminUser {
   name: string;
   email: string;
   initials: string;
-  role: "School Admin" | "Equilinks Admin" | "Educator" | "Student" | "Specialist";
+  role: "School Admin" | "Equilinks Admin" | "Super Admin" | "Educator" | "Student" | "Specialist";
   school: string;
   status: "Active" | "Pending Invite" | "Inactive";
   lastActive: string;
@@ -20,6 +21,7 @@ export interface AdminUser {
 const roleLabels: Record<Role, AdminUser["role"]> = {
   SCHOOL_ADMIN: "School Admin",
   EQUILINKS_ADMIN: "Equilinks Admin",
+  SUPER_ADMIN: "Super Admin",
   EDUCATOR: "Educator",
   SPECIALIST: "Specialist",
   STUDENT: "Student",
@@ -96,10 +98,16 @@ function formatLastActive(value: Date | null) {
   }).format(value);
 }
 
-export async function getAdminUsers(): Promise<AdminUser[]> {
+export async function getAdminUsers(options?: {
+  includeSuperAdmins?: boolean;
+}): Promise<AdminUser[]> {
   await connection();
+  if (options?.includeSuperAdmins) {
+    await requireSuperAdmin("/super-admin/users");
+  }
 
   const rows = await prisma.user.findMany({
+    where: options?.includeSuperAdmins ? undefined : { role: { not: "SUPER_ADMIN" } },
     orderBy: { createdAt: "desc" },
     select: userSelect,
   });

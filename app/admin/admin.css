@@ -485,6 +485,23 @@ body.mode-high-contrast {
   color: #7b9c92;
 }
 
+.sign-out-button {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: #d7e4df;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sign-out-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .profile-menu {
   color: #7b9c92;
   font-size: 16px;
@@ -2086,4 +2103,137 @@ body.mode-high-contrast {
   .metric-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.school-admin-campus {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.school-admin-campus strong {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.school-admin-campus small {
+  color: #9bb5ab;
+  font-size: 11.5px;
+}
+
+.workspace-subnav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: -2px 0 6px 22px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.workspace-sublink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  color: #b7cdc4;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.workspace-sublink:hover,
+.workspace-sublink.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.workspace-sublink .nav-count {
+  margin-left: auto;
+}
+
+.filter-tab {
+  text-decoration: none;
+}
+
+.school-admin-search {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-sm);
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.school-admin-settings {
+  display: grid;
+  gap: 8px;
+}
+
+.school-admin-settings label {
+  margin-top: 8px;
+  color: var(--admin-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.school-admin-settings input[type="text"],
+.school-admin-settings input[type="email"],
+.school-admin-settings input[type="tel"],
+.school-admin-settings input:not([type="checkbox"]) {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-sm);
+  background: var(--admin-surface-subtle);
+  color: var(--admin-ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.school-admin-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  font-weight: 500;
+}
+
+.school-admin-toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.school-admin-toggle strong {
+  font-size: 13.5px;
+}
+
+.school-admin-toggle small {
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.school-admin-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.school-admin-settings-actions p {
+  margin: 0;
+  color: var(--sage);
+  font-size: 13px;
+  font-weight: 600;
 }
