@@ -14,7 +14,7 @@ export function LoginForm({
   const [state, action, pending] = useActionState<LoginState | undefined, FormData>(login, undefined);
   const message =
     state?.error ??
-    (forbidden ? "Only a Super Admin account can open this dashboard." : null);
+    (forbidden ? "This account cannot open that dashboard." : null);
 
   return (
     <form className="login-form" action={action}>

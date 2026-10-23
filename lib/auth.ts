@@ -4,25 +4,22 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { safeSuperAdminPath } from "@/lib/auth-paths";
+import { dashboardForRole, safeDashboardPath, type SessionRole } from "@/lib/auth-paths";
 import prisma from "@/lib/prisma";
 import { decryptSession, SESSION_COOKIE } from "@/lib/session-token";
 
-export type SuperAdminProfile = {
+export type SignedInUser = {
   id: string;
   firstname: string;
   surname: string;
+  role: SessionRole;
 };
 
-type SuperAdminAccess =
-  | { status: "ok"; user: SuperAdminProfile }
-  | { status: "anonymous" | "forbidden" };
-
-export const getSuperAdminAccess = cache(async (): Promise<SuperAdminAccess> => {
+export const getSignedInUser = cache(async (): Promise<SignedInUser | null> => {
   await connection();
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const session = await decryptSession(token);
-  if (!session) return { status: "anonymous" };
+  if (!session) return null;
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -35,27 +32,27 @@ export const getSuperAdminAccess = cache(async (): Promise<SuperAdminAccess> => 
     },
   });
 
-  if (!user || user.role !== "SUPER_ADMIN" || user.status !== "ACTIVE") {
-    return { status: "forbidden" };
-  }
+  if (!user || user.status !== "ACTIVE") return null;
 
   return {
-    status: "ok",
-    user: {
-      id: user.id,
-      firstname: user.firstname,
-      surname: user.surname,
-    },
+    id: user.id,
+    firstname: user.firstname,
+    surname: user.surname,
+    role: user.role,
   };
 });
 
-export async function requireSuperAdmin(nextPath = "/super-admin") {
-  const access = await getSuperAdminAccess();
-  if (access.status === "ok") return access.user;
-
-  const next = encodeURIComponent(safeSuperAdminPath(nextPath));
-  if (access.status === "forbidden") {
-    redirect(`/login?error=forbidden&next=${next}`);
+export async function requireRoles(roles: SessionRole[], nextPath: string) {
+  const user = await getSignedInUser();
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent(safeDashboardPath(roles[0], nextPath))}`);
   }
-  redirect(`/login?next=${next}`);
+  if (!roles.includes(user.role)) {
+    redirect(dashboardForRole(user.role));
+  }
+  return user;
+}
+
+export async function requireSuperAdmin(nextPath = "/super-admin") {
+  return requireRoles(["SUPER_ADMIN"], nextPath);
 }

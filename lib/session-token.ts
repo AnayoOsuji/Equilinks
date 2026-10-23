@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { isSessionRole, type SessionRole } from "@/lib/auth-paths";
 
 export const SESSION_COOKIE = "session";
 
@@ -6,7 +7,7 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type SessionPayload = {
   userId: string;
-  role: "SUPER_ADMIN";
+  role: SessionRole;
   exp: number;
 };
 
@@ -28,10 +29,10 @@ function signaturesMatch(actual: string, expected: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export async function encryptSession(userId: string) {
+export async function encryptSession(userId: string, role: SessionRole) {
   const payload: SessionPayload = {
     userId,
-    role: "SUPER_ADMIN",
+    role,
     exp: Date.now() + SESSION_TTL_MS,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -50,13 +51,13 @@ export async function decryptSession(token: string | undefined | null): Promise<
     if (
       typeof payload.userId !== "string" ||
       payload.userId.length === 0 ||
-      payload.role !== "SUPER_ADMIN" ||
+      !isSessionRole(payload.role) ||
       typeof payload.exp !== "number" ||
       payload.exp <= Date.now()
     ) {
       return null;
     }
-    return { userId: payload.userId, role: "SUPER_ADMIN", exp: payload.exp };
+    return { userId: payload.userId, role: payload.role, exp: payload.exp };
   } catch {
     return null;
   }

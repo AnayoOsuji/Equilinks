@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { safeSuperAdminPath } from "@/lib/auth-paths";
+import { safeInternalPath } from "@/lib/auth-paths";
 import { LoginForm } from "./login-form";
 
 type LoginSearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -32,7 +32,7 @@ export default function LoginPage({ searchParams }: { searchParams: LoginSearchP
 
 async function LoginPanel({ searchParams }: { searchParams: LoginSearchParams }) {
   const params = await searchParams;
-  const nextPath = safeSuperAdminPath(typeof params.next === "string" ? params.next : null);
+  const nextPath = safeInternalPath(typeof params.next === "string" ? params.next : null) ?? "";
   const forbidden = params.error === "forbidden";
 
   return <LoginForm nextPath={nextPath} forbidden={forbidden} />;

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { requireRoles } from "@/lib/auth";
 import { getSchoolAdminClasses, getSchoolAdminPeople, getSchoolAdminStudents } from "@/lib/school-admin-users";
 import { SchoolAdminShell } from "./shell";
 import "../admin/admin.css";
@@ -22,6 +23,7 @@ export default function SchoolAdminLayout({ children }: { children: React.ReactN
 }
 
 async function SchoolAdminFrame({ children }: { children: React.ReactNode }) {
+  await requireRoles(["SCHOOL_ADMIN"], "/school-admin");
   const [people, students, classes] = await Promise.all([
     getSchoolAdminPeople(),
     getSchoolAdminStudents(),

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { safeSuperAdminPath } from "@/lib/auth-paths";
+import { safeDashboardPath } from "@/lib/auth-paths";
 import { verifyPassword } from "@/lib/password";
 import prisma from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
@@ -16,7 +16,7 @@ export type LoginState = {
 export async function login(_state: LoginState | undefined, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const next = safeSuperAdminPath(String(formData.get("next") ?? ""));
+  const requested = String(formData.get("next") ?? "");
 
   if (!email || !password) {
     return { error: "Enter your email and password.", email };
@@ -37,12 +37,8 @@ export async function login(_state: LoginState | undefined, formData: FormData):
     return { error: "Email or password is incorrect.", email };
   }
 
-  if (user.role !== "SUPER_ADMIN") {
-    return { error: "Only a Super Admin account can open this dashboard.", email };
-  }
-
-  await createSession(user.id);
-  redirect(next);
+  await createSession(user.id, user.role);
+  redirect(safeDashboardPath(user.role, requested));
 }
 
 export async function signOut() {

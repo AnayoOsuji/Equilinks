@@ -1,23 +1,46 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { safeSuperAdminPath } from "@/lib/auth-paths";
+import { safeInternalPath } from "@/lib/auth-paths";
 import { decryptSession, SESSION_COOKIE } from "@/lib/session-token";
+
+function isProtected(pathname: string) {
+  return (
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/school-admin" ||
+    pathname.startsWith("/school-admin/") ||
+    pathname === "/super-admin" ||
+    pathname.startsWith("/super-admin/") ||
+    pathname === "/home" ||
+    pathname.startsWith("/home/")
+  );
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname !== "/super-admin" && !pathname.startsWith("/super-admin/")) {
+  if (!isProtected(pathname)) {
     return NextResponse.next();
   }
 
   const session = await decryptSession(request.cookies.get(SESSION_COOKIE)?.value);
-  if (session?.role === "SUPER_ADMIN") {
+  if (session) {
     return NextResponse.next();
   }
 
   const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("next", safeSuperAdminPath(pathname));
+  const next = safeInternalPath(pathname);
+  if (next) loginUrl.searchParams.set("next", next);
   return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
-  matcher: ["/super-admin", "/super-admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/admin",
+    "/school-admin/:path*",
+    "/school-admin",
+    "/super-admin/:path*",
+    "/super-admin",
+    "/home/:path*",
+    "/home",
+  ],
 };
