@@ -1,36 +1,34 @@
 import { Suspense } from "react";
 import { unstable_rethrow } from "next/navigation";
+import { sidebarProfile } from "@/lib/sidebar-profile";
 import { requireSuperAdmin } from "@/lib/auth";
 import { getAdminUsers, getSchoolNames } from "@/lib/admin-users";
 import UsersClient from "../../admin/users/users-client";
-import "../../admin/admin.css";
+import { WorkspaceContentFallback } from "../shell";
 
 export default function SuperAdminUsersPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="admin-shell">
-          <main className="admin-main">
-            <div className="admin-content">
-              <p className="dashboard-subtitle">Loading users…</p>
-            </div>
-          </main>
-        </div>
-      }
-    >
-      <UsersDirectory />
+    <Suspense fallback={<WorkspaceContentFallback title="Users" />}>
+      <SuperAdminUsers />
     </Suspense>
   );
 }
 
-async function UsersDirectory() {
+async function SuperAdminUsers() {
   try {
-    await requireSuperAdmin("/super-admin/users");
+    const user = await requireSuperAdmin("/super-admin/users");
     const [users, schools] = await Promise.all([
-      getAdminUsers({ includeSuperAdmins: true }),
+      getAdminUsers({ includeSuperAdmins: true, includeParents: true }),
       getSchoolNames(),
     ]);
-    return <UsersClient initialUsers={users} schools={schools} workspace="super-admin" />;
+    return (
+      <UsersClient
+        initialUsers={users}
+        schools={schools}
+        workspace="super-admin"
+        profile={sidebarProfile(user)}
+      />
+    );
   } catch (error) {
     unstable_rethrow(error);
     const message =
@@ -38,14 +36,12 @@ async function UsersDirectory() {
         ? error.message.replace(/postgres(?:ql)?:\/\/\S+/gi, "postgresql://…")
         : "Users could not be loaded.";
     return (
-      <div className="admin-shell">
-        <main className="admin-main">
-          <div className="admin-content">
-            <p className="dashboard-subtitle">Users could not be loaded.</p>
-            <p className="dashboard-subtitle">{message}</p>
-          </div>
-        </main>
-      </div>
+      <main className="admin-main">
+        <div className="admin-content">
+          <p className="dashboard-subtitle">Users could not be loaded.</p>
+          <p className="dashboard-subtitle">{message}</p>
+        </div>
+      </main>
     );
   }
 }

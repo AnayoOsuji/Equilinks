@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import type { Role, UserStatus } from "@prisma/client";
-import { requireSuperAdmin } from "@/lib/auth";
+import { requireRoles } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 export interface AdminUser {
@@ -10,7 +10,7 @@ export interface AdminUser {
   name: string;
   email: string;
   initials: string;
-  role: "School Admin" | "Equilinks Admin" | "Super Admin" | "Educator" | "Student" | "Specialist";
+  role: "School Admin" | "Equilinks Admin" | "Super Admin" | "Educator" | "Student" | "Specialist" | "Parent";
   school: string;
   status: "Active" | "Pending Invite" | "Inactive";
   lastActive: string;
@@ -98,21 +98,74 @@ function formatLastActive(value: Date | null) {
   }).format(value);
 }
 
+type ParentRecord = {
+  id: string;
+  firstname: string;
+  surname: string;
+  email: string;
+  avatar: string | null;
+  status: UserStatus;
+  lastCommunication: Date | null;
+  school: { name: string } | null;
+};
+
+export function toAdminParent(parent: ParentRecord): AdminUser {
+  return {
+    id: parent.id,
+    firstname: parent.firstname,
+    surname: parent.surname,
+    name: `${parent.firstname} ${parent.surname}`.trim(),
+    email: parent.email,
+    initials: initialsFor(parent.firstname, parent.surname),
+    role: "Parent",
+    school: parent.school?.name ?? "Unassigned",
+    status: statusLabels[parent.status],
+    lastActive: formatLastActive(parent.lastCommunication),
+    avatarColor: colorFor(parent.id),
+    avatar: parent.avatar ?? undefined,
+  };
+}
+
+const parentSelect = {
+  id: true,
+  firstname: true,
+  surname: true,
+  email: true,
+  avatar: true,
+  status: true,
+  lastCommunication: true,
+  school: { select: { name: true } },
+} as const;
+
 export async function getAdminUsers(options?: {
   includeSuperAdmins?: boolean;
+  includeParents?: boolean;
 }): Promise<AdminUser[]> {
   await connection();
-  if (options?.includeSuperAdmins) {
-    await requireSuperAdmin("/super-admin/users");
+  if (options?.includeSuperAdmins || options?.includeParents) {
+    await requireRoles(["EQUILINKS_ADMIN", "SUPER_ADMIN"], "/admin/users");
   }
 
-  const rows = await prisma.user.findMany({
-    where: options?.includeSuperAdmins ? undefined : { role: { not: "SUPER_ADMIN" } },
-    orderBy: { createdAt: "desc" },
-    select: userSelect,
-  });
+  const [rows, parents] = await Promise.all([
+    prisma.user.findMany({
+      where: options?.includeSuperAdmins ? undefined : { role: { not: "SUPER_ADMIN" } },
+      orderBy: { createdAt: "desc" },
+      select: { ...userSelect, createdAt: true },
+    }),
+    options?.includeParents
+      ? prisma.parent.findMany({
+          orderBy: { createdAt: "desc" },
+          select: { ...parentSelect, createdAt: true },
+        })
+      : Promise.resolve([]),
+  ]);
 
-  return rows.map(toAdminUser);
+  return [
+    ...rows.map((user) => ({ createdAt: user.createdAt.getTime(), row: toAdminUser(user) })),
+    ...parents.map((parent) => ({ createdAt: parent.createdAt.getTime(), row: toAdminParent(parent) })),
+  ]
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .map((entry) => entry.row);
 }
 
 const userSelect = {
@@ -138,4 +191,4 @@ export async function getSchoolNames(): Promise<string[]> {
   return schools.map((school) => school.name);
 }
 
-export { userSelect };
+export { parentSelect, userSelect };

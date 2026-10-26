@@ -5,13 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AdminUser } from "@/lib/admin-users";
 import { signOut } from "@/app/login/actions";
+import { ProfileAvatar, TopbarAvatar } from "../profile-avatar";
+import type { SidebarProfile } from "@/lib/sidebar-profile";
+import { useSuperAdminShell } from "@/app/super-admin/shell";
+import { useAdminShell } from "../shell";
 import { createAdminUser, deleteAdminUser, updateAdminUser } from "./actions";
 import "../admin.css";
 import {
   Layers,
   Building2,
   Users,
-  HeartHandshake,
   Settings,
   Search,
   Bell,
@@ -30,11 +33,13 @@ import {
   UploadCloud,
 } from "lucide-react";
 
-const fallbackSchools = [
-  "Harborview Learning Center",
-  "Cascade Inclusive Academy",
-  "Sunridge Neurodiverse High",
-];
+function roleTone(role: AdminUser["role"]) {
+  if (role === "Student") return { background: "var(--sage-soft)", color: "var(--sage)" };
+  if (role === "Educator") return { background: "var(--iris-soft)", color: "var(--iris)" };
+  if (role === "Specialist") return { background: "var(--amber-soft)", color: "var(--amber)" };
+  if (role === "Parent") return { background: "#f2e7f8", color: "#5a2e6f" };
+  return { background: "var(--coral-soft)", color: "var(--coral)" };
+}
 
 const emptyUserForm = {
   avatar: "",
@@ -50,20 +55,24 @@ export default function UsersClient({
   initialUsers,
   schools,
   workspace = "admin",
+  profile,
 }: {
   initialUsers: AdminUser[];
   schools: string[];
   workspace?: "admin" | "super-admin";
+  profile?: SidebarProfile;
 }) {
   const router = useRouter();
-  const schoolChoices = schools.length > 0 ? schools : fallbackSchools;
+  const shell = useSuperAdminShell() ?? useAdminShell();
+  const schoolChoices = schools;
   const directoryRoot = workspace === "super-admin" ? "/super-admin" : "/admin";
+  const account: SidebarProfile = profile ?? shell?.profile ?? {
+    name: "",
+    initials: "",
+    roleLabel: workspace === "super-admin" ? "Super Admin" : "Equilinks Admin",
+  };
   const [users, setUsers] = useState<AdminUser[]>(initialUsers);
-  const directoryUsers = useMemo(
-    () =>
-      workspace === "super-admin" ? users : users.filter((user) => user.role !== "Super Admin"),
-    [users, workspace],
-  );
+  const directoryUsers = users;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [selectedSchool, setSelectedSchool] = useState<string>("all");
@@ -79,7 +88,7 @@ export default function UsersClient({
 
   const [newUser, setNewUser] = useState({
     ...emptyUserForm,
-    school: schoolChoices[0],
+    school: schoolChoices[0] ?? "",
   });
   const formSchoolOptions =
     newUser.school && !schoolChoices.includes(newUser.school)
@@ -98,20 +107,21 @@ export default function UsersClient({
       if (
         selectedRole !== "all" &&
         u.role !== selectedRole &&
-        !(workspace === "super-admin" && selectedRole === "School Admin" && u.role === "Super Admin")
+        !(selectedRole === "School Admin" && u.role === "Super Admin")
       ) {
         return false;
       }
       if (selectedSchool !== "all" && u.school !== selectedSchool) return false;
       return true;
     });
-  }, [directoryUsers, searchQuery, selectedRole, selectedSchool, workspace]);
+  }, [directoryUsers, searchQuery, selectedRole, selectedSchool]);
 
   // Counts
   const counts = useMemo(() => {
     return {
       all: directoryUsers.length,
       student: directoryUsers.filter((u) => u.role === "Student").length,
+      parent: directoryUsers.filter((u) => u.role === "Parent").length,
       educator: directoryUsers.filter((u) => u.role === "Educator").length,
       specialist: directoryUsers.filter((u) => u.role === "Specialist").length,
       admin: directoryUsers.filter(
@@ -127,7 +137,7 @@ export default function UsersClient({
   const resetUserForm = () => {
     setNewUser({
       ...emptyUserForm,
-      school: schoolChoices[0],
+      school: schoolChoices[0] ?? "",
     });
     setFormError(null);
     setEditingUser(null);
@@ -236,9 +246,8 @@ export default function UsersClient({
   };
 
   return (
-    <div className="admin-shell">
-      {/* Mobile Drawer Backdrop */}
-      {mobileSidebarOpen && (
+    <div className={shell ? undefined : "admin-shell"} style={shell ? { display: "contents" } : undefined}>
+      {!shell && mobileSidebarOpen && (
         <div
           className="drawer-backdrop"
           style={{ zIndex: 39 }}
@@ -247,7 +256,7 @@ export default function UsersClient({
         />
       )}
 
-      {/* Dark Sidebar - Fixed 100vh */}
+      {!shell && (
       <aside
         className={`admin-sidebar ${mobileSidebarOpen ? "mobile-open" : ""}`}
         aria-label="Sidebar Navigation"
@@ -269,7 +278,7 @@ export default function UsersClient({
               <Layers size={18} />
               <span>Overview</span>
             </Link>
-            <Link className="workspace-link" href="/admin/schools">
+            <Link className="workspace-link" href={`${directoryRoot}/schools`}>
               <Building2 size={18} />
               <span>Schools</span>
               <span className="nav-count">3</span>
@@ -279,12 +288,7 @@ export default function UsersClient({
               <span>Users</span>
               <span className="nav-count">{directoryUsers.length}</span>
             </Link>
-            <Link className="workspace-link" href="/admin/parents">
-              <HeartHandshake size={18} />
-              <span>Parents</span>
-              <span className="nav-count">94</span>
-            </Link>
-            <Link className="workspace-link" href={`${directoryRoot}#settings`}>
+            <Link className="workspace-link" href={workspace === "super-admin" ? `${directoryRoot}/settings` : `${directoryRoot}#settings`}>
               <Settings size={18} />
               <span>Settings</span>
             </Link>
@@ -294,24 +298,20 @@ export default function UsersClient({
         {/* Sidebar Footer & User Profile */}
         <div className="sidebar-bottom">
           <div className="sidebar-profile" role="button" tabIndex={0}>
-            <span className="profile-avatar">
-              MC
-              <span className="profile-avatar-online" title="Online" />
-            </span>
+            <ProfileAvatar profile={account} />
             <div className="profile-copy">
-              <strong>Maya Chen</strong>
-              <small>{workspace === "super-admin" ? "Super Admin" : "Administrator"}</small>
+              <strong>{account.name}</strong>
+              <small>{account.roleLabel}</small>
             </div>
           </div>
-          {workspace === "super-admin" ? (
-            <form action={signOut}>
-              <button className="sign-out-button" type="submit">
-                Sign out
-              </button>
-            </form>
-          ) : null}
+          <form action={signOut}>
+            <button className="sign-out-button" type="submit">
+              Sign out
+            </button>
+          </form>
         </div>
       </aside>
+      )}
 
       {/* Main Content Area */}
       <main className="admin-main" id="users-main">
@@ -321,7 +321,7 @@ export default function UsersClient({
             <button
               className="icon-button mobile-menu-btn"
               style={{ display: "none" }}
-              onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+              onClick={() => (shell ? shell.openMenu() : setMobileSidebarOpen(!mobileSidebarOpen))}
               aria-label="Toggle navigation menu"
             >
               <Menu size={18} />
@@ -358,9 +358,7 @@ export default function UsersClient({
               <span className="notification-dot" />
               <Bell size={18} />
             </button>
-            <span className="topbar-avatar" title="Maya Chen">
-              MC
-            </span>
+            <TopbarAvatar profile={account} />
           </div>
         </header>
 
@@ -467,6 +465,12 @@ export default function UsersClient({
                 onClick={() => setSelectedRole("Student")}
               >
                 Students ({counts.student})
+              </button>
+              <button
+                className={`filter-tab ${selectedRole === "Parent" ? "is-active" : ""}`}
+                onClick={() => setSelectedRole("Parent")}
+              >
+                Parents ({counts.parent})
               </button>
               <button
                 className={`filter-tab ${selectedRole === "Educator" ? "is-active" : ""}`}
@@ -578,22 +582,8 @@ export default function UsersClient({
                               fontWeight: 600,
                               padding: "3px 8px",
                               borderRadius: "4px",
-                              background:
-                                user.role === "Student"
-                                  ? "var(--sage-soft)"
-                                  : user.role === "Educator"
-                                  ? "var(--iris-soft)"
-                                  : user.role === "Specialist"
-                                  ? "var(--amber-soft)"
-                                  : "var(--coral-soft)",
-                              color:
-                                user.role === "Student"
-                                  ? "var(--sage)"
-                                  : user.role === "Educator"
-                                  ? "var(--iris)"
-                                  : user.role === "Specialist"
-                                  ? "var(--amber)"
-                                  : "var(--coral)",
+                              background: roleTone(user.role).background,
+                              color: roleTone(user.role).color,
                             }}
                           >
                             {user.role}
@@ -833,18 +823,19 @@ export default function UsersClient({
                     />
                   </div>
 
-                  {/* Password */}
-                  <div className="form-group">
-                    <label htmlFor="user-password">{editingUser ? "New password" : "Password"}</label>
-                    <input
-                      id="user-password"
-                      type="password"
-                      required={!editingUser}
-                      placeholder={editingUser ? "Leave blank to keep the current password" : "Create temporary password"}
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    />
-                  </div>
+                  {editingUser?.role !== "Parent" && (
+                    <div className="form-group">
+                      <label htmlFor="user-password">{editingUser ? "New password" : "Password"}</label>
+                      <input
+                        id="user-password"
+                        type="password"
+                        required={!editingUser}
+                        placeholder={editingUser ? "Leave blank to keep the current password" : "Create temporary password"}
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                      />
+                    </div>
+                  )}
 
                   {/* Select School */}
                   <div className="form-group">
@@ -854,11 +845,15 @@ export default function UsersClient({
                       value={newUser.school}
                       onChange={(e) => setNewUser({ ...newUser, school: e.target.value })}
                     >
-                      {formSchoolOptions.map((school) => (
-                        <option key={school} value={school}>
-                          {school}
-                        </option>
-                      ))}
+                      {formSchoolOptions.length === 0 ? (
+                        <option value="">No schools yet</option>
+                      ) : (
+                        formSchoolOptions.map((school) => (
+                          <option key={school} value={school}>
+                            {school}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -868,6 +863,7 @@ export default function UsersClient({
                     <select
                       id="user-role"
                       value={newUser.role}
+                      disabled={editingUser?.role === "Parent"}
                       onChange={(e) =>
                         setNewUser({
                           ...newUser,
@@ -875,12 +871,18 @@ export default function UsersClient({
                         })
                       }
                     >
-                      <option value="School Admin">School Admin</option>
-                      <option value="Equilinks Admin">Equilinks Admin</option>
-                      <option value="Super Admin">Super Admin</option>
-                      <option value="Educator">Educator</option>
-                      <option value="Specialist">Specialist</option>
-                      <option value="Student">Student</option>
+                      {editingUser?.role === "Parent" ? (
+                        <option value="Parent">Parent</option>
+                      ) : (
+                        <>
+                          <option value="School Admin">School Admin</option>
+                          <option value="Equilinks Admin">Equilinks Admin</option>
+                          <option value="Super Admin">Super Admin</option>
+                          <option value="Educator">Educator</option>
+                          <option value="Specialist">Specialist</option>
+                          <option value="Student">Student</option>
+                        </>
+                      )}
                     </select>
                   </div>
 

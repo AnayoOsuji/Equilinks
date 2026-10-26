@@ -2,6 +2,9 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { signOut } from "@/app/login/actions";
+import { ProfileAvatar, TopbarAvatar } from "./profile-avatar";
+import { useAdminShell } from "./shell";
 import "./admin.css";
 import {
   Layers,
@@ -101,16 +104,18 @@ const activitiesList: RecentActivity[] = [
 ];
 
 export default function AdminPage() {
+  const shell = useAdminShell();
+  const profile = shell?.profile ?? null;
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const firstName = profile?.name.split(" ")[0];
 
   const totalUsers = schoolsList.reduce((acc, s) => acc + s.usersCount, 0);
   const totalParents = schoolsList.reduce((acc, s) => acc + s.parentsCount, 0);
 
   return (
-    <div className="admin-shell">
-      {/* Mobile Drawer Backdrop */}
-      {mobileSidebarOpen && (
+    <div className={shell ? undefined : "admin-shell"} style={shell ? { display: "contents" } : undefined}>
+      {!shell && mobileSidebarOpen && (
         <div
           className="drawer-backdrop"
           style={{ zIndex: 39 }}
@@ -119,7 +124,7 @@ export default function AdminPage() {
         />
       )}
 
-      {/* Dark Sidebar - Fixed 100vh */}
+      {!shell && (
       <aside
         className={`admin-sidebar ${mobileSidebarOpen ? "mobile-open" : ""}`}
         aria-label="Sidebar Navigation"
@@ -151,11 +156,6 @@ export default function AdminPage() {
               <span>Users</span>
               <span className="nav-count">{totalUsers}</span>
             </Link>
-            <Link className="workspace-link" href="/admin/parents">
-              <HeartHandshake size={18} />
-              <span>Parents</span>
-              <span className="nav-count">{totalParents}</span>
-            </Link>
             <Link className="workspace-link" href="/admin#settings">
               <Settings size={18} />
               <span>Settings</span>
@@ -166,17 +166,20 @@ export default function AdminPage() {
         {/* Sidebar Footer & User Profile */}
         <div className="sidebar-bottom">
           <div className="sidebar-profile" role="button" tabIndex={0}>
-            <span className="profile-avatar">
-              MC
-              <span className="profile-avatar-online" title="Online" />
-            </span>
+            {profile ? <ProfileAvatar profile={profile} /> : <span className="profile-avatar" />}
             <div className="profile-copy">
-              <strong>Maya Chen</strong>
-              <small>Administrator</small>
+              <strong>{profile?.name || "Equilinks Admin"}</strong>
+              <small>{profile?.roleLabel || "Equilinks Admin"}</small>
             </div>
           </div>
+          <form action={signOut}>
+            <button className="sign-out-button" type="submit">
+              Sign out
+            </button>
+          </form>
         </div>
       </aside>
+      )}
 
       {/* Main Content Area */}
       <main className="admin-main" id="overview">
@@ -186,7 +189,7 @@ export default function AdminPage() {
             <button
               className="icon-button mobile-menu-btn"
               style={{ display: "none" }}
-              onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+              onClick={() => (shell ? shell.openMenu() : setMobileSidebarOpen(!mobileSidebarOpen))}
               aria-label="Toggle navigation menu"
             >
               <Menu size={18} />
@@ -213,9 +216,7 @@ export default function AdminPage() {
               <span className="notification-dot" />
               <Bell size={18} />
             </button>
-            <span className="topbar-avatar" title="Maya Chen">
-              MC
-            </span>
+            {profile ? <TopbarAvatar profile={profile} /> : <span className="topbar-avatar" />}
           </div>
         </header>
 
@@ -225,7 +226,7 @@ export default function AdminPage() {
           <section className="dashboard-heading">
             <div>
               <p className="dashboard-date">OVERVIEW</p>
-              <h1>Good morning, Maya</h1>
+              <h1>{firstName ? `Good morning, ${firstName}` : "Good morning"}</h1>
               <p className="dashboard-subtitle">
                 A simple overview across your schools, users, and parents.
               </p>

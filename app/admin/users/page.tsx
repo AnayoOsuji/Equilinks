@@ -2,21 +2,11 @@ import { Suspense } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { getAdminUsers, getSchoolNames } from "@/lib/admin-users";
 import UsersClient from "./users-client";
-import "../admin.css";
+import { AdminContentFallback } from "../shell";
 
 export default function UsersPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="admin-shell">
-          <main className="admin-main">
-            <div className="admin-content">
-              <p className="dashboard-subtitle">Loading users…</p>
-            </div>
-          </main>
-        </div>
-      }
-    >
+    <Suspense fallback={<AdminContentFallback title="Users" />}>
       <UsersDirectory />
     </Suspense>
   );
@@ -24,7 +14,10 @@ export default function UsersPage() {
 
 async function UsersDirectory() {
   try {
-    const [users, schools] = await Promise.all([getAdminUsers(), getSchoolNames()]);
+    const [users, schools] = await Promise.all([
+      getAdminUsers({ includeSuperAdmins: true, includeParents: true }),
+      getSchoolNames(),
+    ]);
     return <UsersClient initialUsers={users} schools={schools} />;
   } catch (error) {
     unstable_rethrow(error);
@@ -33,14 +26,12 @@ async function UsersDirectory() {
         ? error.message.replace(/postgres(?:ql)?:\/\/\S+/gi, "postgresql://…")
         : "Users could not be loaded.";
     return (
-      <div className="admin-shell">
-        <main className="admin-main">
-          <div className="admin-content">
-            <p className="dashboard-subtitle">Users could not be loaded.</p>
-            <p className="dashboard-subtitle">{message}</p>
-          </div>
-        </main>
-      </div>
+      <main className="admin-main">
+        <div className="admin-content">
+          <p className="dashboard-subtitle">Users could not be loaded.</p>
+          <p className="dashboard-subtitle">{message}</p>
+        </div>
+      </main>
     );
   }
 }

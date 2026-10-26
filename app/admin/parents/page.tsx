@@ -2,6 +2,9 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { signOut } from "@/app/login/actions";
+import { ProfileAvatar, TopbarAvatar } from "../profile-avatar";
+import { useAdminShell } from "../shell";
 import "../admin.css";
 import {
   Layers,
@@ -163,6 +166,8 @@ const initialParentsList: ParentContact[] = [
 ];
 
 export default function ParentsPage() {
+  const shell = useAdminShell();
+  const profile = shell?.profile ?? null;
   const [parents, setParents] = useState<ParentContact[]>(initialParentsList);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSchool, setSelectedSchool] = useState<string>("all");
@@ -253,9 +258,8 @@ export default function ParentsPage() {
   };
 
   return (
-    <div className="admin-shell">
-      {/* Mobile Drawer Backdrop */}
-      {mobileSidebarOpen && (
+    <div className={shell ? undefined : "admin-shell"} style={shell ? { display: "contents" } : undefined}>
+      {!shell && mobileSidebarOpen && (
         <div
           className="drawer-backdrop"
           style={{ zIndex: 39 }}
@@ -264,7 +268,7 @@ export default function ParentsPage() {
         />
       )}
 
-      {/* Dark Sidebar - Fixed 100vh */}
+      {!shell && (
       <aside
         className={`admin-sidebar ${mobileSidebarOpen ? "mobile-open" : ""}`}
         aria-label="Sidebar Navigation"
@@ -296,11 +300,6 @@ export default function ParentsPage() {
               <span>Users</span>
               <span className="nav-count">10</span>
             </Link>
-            <Link className="workspace-link is-active" href="/admin/parents">
-              <HeartHandshake size={18} />
-              <span>Parents</span>
-              <span className="nav-count">{parents.length}</span>
-            </Link>
             <Link className="workspace-link" href="/admin#settings">
               <Settings size={18} />
               <span>Settings</span>
@@ -311,17 +310,20 @@ export default function ParentsPage() {
         {/* Sidebar Footer & User Profile */}
         <div className="sidebar-bottom">
           <div className="sidebar-profile" role="button" tabIndex={0}>
-            <span className="profile-avatar">
-              MC
-              <span className="profile-avatar-online" title="Online" />
-            </span>
+            {profile ? <ProfileAvatar profile={profile} /> : <span className="profile-avatar" />}
             <div className="profile-copy">
-              <strong>Maya Chen</strong>
-              <small>Administrator</small>
+              <strong>{profile?.name || "Equilinks Admin"}</strong>
+              <small>{profile?.roleLabel || "Equilinks Admin"}</small>
             </div>
           </div>
+          <form action={signOut}>
+            <button className="sign-out-button" type="submit">
+              Sign out
+            </button>
+          </form>
         </div>
       </aside>
+      )}
 
       {/* Main Content Area */}
       <main className="admin-main" id="parents-main">
@@ -330,7 +332,7 @@ export default function ParentsPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <button
               className="admin-sidebar-toggle"
-              onClick={() => setMobileSidebarOpen(true)}
+              onClick={() => (shell ? shell.openMenu() : setMobileSidebarOpen(true))}
               aria-label="Toggle navigation menu"
             >
               <Menu size={18} />
@@ -357,9 +359,7 @@ export default function ParentsPage() {
               <span className="notification-dot" />
               <Bell size={18} />
             </button>
-            <span className="topbar-avatar" title="Maya Chen">
-              MC
-            </span>
+            {profile ? <TopbarAvatar profile={profile} /> : <span className="topbar-avatar" />}
           </div>
         </header>
 

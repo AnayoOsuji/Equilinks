@@ -5,9 +5,11 @@ import type { Role, UserStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
-import { toAdminUser, userSelect, type AdminUser } from "@/lib/admin-users";
+import { parentSelect, toAdminParent, toAdminUser, userSelect, type AdminUser } from "@/lib/admin-users";
 
-const roleValues: Record<AdminUser["role"], Role> = {
+type AccountRole = Exclude<AdminUser["role"], "Parent">;
+
+const roleValues: Record<AccountRole, Role> = {
   "School Admin": "SCHOOL_ADMIN",
   "Equilinks Admin": "EQUILINKS_ADMIN",
   "Super Admin": "SUPER_ADMIN",
@@ -15,6 +17,10 @@ const roleValues: Record<AdminUser["role"], Role> = {
   Specialist: "SPECIALIST",
   Student: "STUDENT",
 };
+
+function isAccountRole(role: AdminUser["role"]): role is AccountRole {
+  return role !== "Parent";
+}
 
 const statusValues: Record<AdminUser["status"], UserStatus> = {
   Active: "ACTIVE",
@@ -41,15 +47,15 @@ export async function createAdminUser(input: CreateAdminUserInput): Promise<Crea
   const firstname = input.firstname.trim();
   const surname = input.surname.trim();
   const email = input.email.trim().toLowerCase();
-  const role = roleValues[input.role];
   const status = statusValues[input.status];
 
   if (!firstname || !surname || !email || !input.password) {
     return { ok: false, error: "First name, surname, email, and password are required." };
   }
-  if (!role || !status) {
+  if (!isAccountRole(input.role) || !status) {
     return { ok: false, error: "Choose a valid role and status." };
   }
+  const role = roleValues[input.role];
 
   try {
     const created = await prisma.user.create({
@@ -67,7 +73,7 @@ export async function createAdminUser(input: CreateAdminUserInput): Promise<Crea
       select: userSelect,
     });
 
-    revalidatePath("/admin/users");
+    revalidateUserPaths();
     return { ok: true, user: toAdminUser(created) };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -105,16 +111,19 @@ export async function updateAdminUser(input: UpdateAdminUserInput): Promise<Crea
   const firstname = input.firstname.trim();
   const surname = input.surname.trim();
   const email = input.email.trim().toLowerCase();
-  const role = roleValues[input.role];
   const status = statusValues[input.status];
   const password = input.password?.trim() ?? "";
 
   if (!input.id || !firstname || !surname || !email) {
     return { ok: false, error: "First name, surname, and email are required." };
   }
-  if (!role || !status) {
+  if (!status || (input.role !== "Parent" && !isAccountRole(input.role))) {
     return { ok: false, error: "Choose a valid role and status." };
   }
+  if (input.role === "Parent") {
+    return updateParentAccount(input, status);
+  }
+  const role = roleValues[input.role];
 
   try {
     const updated = await prisma.user.update({
@@ -134,7 +143,7 @@ export async function updateAdminUser(input: UpdateAdminUserInput): Promise<Crea
       select: userSelect,
     });
 
-    revalidatePath("/admin/users");
+    revalidateUserPaths();
     return { ok: true, user: toAdminUser(updated) };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
@@ -147,12 +156,57 @@ export async function updateAdminUser(input: UpdateAdminUserInput): Promise<Crea
   }
 }
 
+async function updateParentAccount(
+  input: UpdateAdminUserInput,
+  status: UserStatus,
+): Promise<CreateAdminUserResult> {
+  try {
+    const updated = await prisma.parent.update({
+      where: { id: input.id },
+      data: {
+        firstname: input.firstname.trim(),
+        surname: input.surname.trim(),
+        email: input.email.trim().toLowerCase(),
+        status,
+        schoolId: await resolveSchoolId(input.school),
+        ...(input.avatar !== undefined
+          ? { avatar: input.avatar.trim() ? input.avatar : null }
+          : {}),
+      },
+      select: parentSelect,
+    });
+
+    revalidateUserPaths();
+    return { ok: true, user: toAdminParent(updated) };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return { ok: false, error: "This parent no longer exists." };
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { ok: false, error: "A user with this email already exists." };
+    }
+    throw error;
+  }
+}
+
+function revalidateUserPaths() {
+  revalidatePath("/admin/users");
+  revalidatePath("/super-admin/users");
+  revalidatePath("/school-admin/users");
+  revalidatePath("/school-admin/users/parents");
+}
+
 export async function deleteAdminUser(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!id) return { ok: false, error: "Choose a user to delete." };
 
   try {
-    await prisma.user.delete({ where: { id } });
-    revalidatePath("/admin/users");
+    const parent = await prisma.parent.findUnique({ where: { id }, select: { id: true } });
+    if (parent) {
+      await prisma.parent.delete({ where: { id } });
+    } else {
+      await prisma.user.delete({ where: { id } });
+    }
+    revalidateUserPaths();
     return { ok: true };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

@@ -12,6 +12,7 @@ export type SignedInUser = {
   id: string;
   firstname: string;
   surname: string;
+  avatar?: string;
   role: SessionRole;
 };
 
@@ -27,6 +28,7 @@ export const getSignedInUser = cache(async (): Promise<SignedInUser | null> => {
       id: true,
       firstname: true,
       surname: true,
+      avatar: true,
       role: true,
       status: true,
     },
@@ -38,6 +40,7 @@ export const getSignedInUser = cache(async (): Promise<SignedInUser | null> => {
     id: user.id,
     firstname: user.firstname,
     surname: user.surname,
+    avatar: user.avatar ?? undefined,
     role: user.role,
   };
 });
