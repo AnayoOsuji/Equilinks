@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { safeInternalPath } from "@/lib/auth-paths";
+import { PageLoader } from "../page-loader";
 import { LoginForm } from "./login-form";
 
 type LoginSearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -22,7 +23,7 @@ export default function LoginPage({ searchParams }: { searchParams: LoginSearchP
 
       <section className="login-panel" aria-labelledby="login-title">        
         <h1 id="login-title">Login</h1><br />
-        <Suspense fallback={<p className="login-copy">Loading sign in…</p>}>
+        <Suspense fallback={<PageLoader label="sign in" compact />}>
           <LoginPanel searchParams={searchParams} />
         </Suspense>
       </section>

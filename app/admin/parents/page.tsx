@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signOut } from "@/app/login/actions";
 import { ProfileAvatar, TopbarAvatar } from "../profile-avatar";
 import { useAdminShell } from "../shell";
+import { readImageFile } from "@/lib/avatar";
 import "../admin.css";
 import {
   Layers,
@@ -842,13 +843,11 @@ export default function ParentsPage() {
                       style={{ display: "none" }}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setNewParent((prev) => ({ ...prev, avatar: reader.result as string }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
+                        e.target.value = "";
+                        if (!file) return;
+                        void readImageFile(file).then((avatar) => {
+                          setNewParent((prev) => ({ ...prev, avatar }));
+                        });
                       }}
                     />
                   </label>

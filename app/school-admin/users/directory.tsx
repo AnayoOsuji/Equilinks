@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, UploadCloud, X } from "lucide-react";
+import { readImageFile } from "@/lib/avatar";
 import type { CampusPerson, PersonStatus } from "../data";
-import { createSchoolAdminPerson } from "./actions";
+import { createSchoolAdminPerson, deleteSchoolAdminPerson, updateSchoolAdminPerson } from "./actions";
 
 const emptyForm = {
   firstname: "",
@@ -14,22 +15,29 @@ const emptyForm = {
   password: "",
   role: "Educator" as CampusPerson["role"],
   status: "Active" as PersonStatus,
+  avatar: "",
 };
 
 export function UsersDirectory({
   role,
   people: initialPeople,
+  schoolName,
 }: {
   role: "all" | "educator" | "parent";
   people: CampusPerson[];
+  schoolName: string;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState(initialPeople);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<CampusPerson | null>(null);
+  const [personToDelete, setPersonToDelete] = useState<CampusPerson | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     setPeople(initialPeople);
@@ -54,10 +62,10 @@ export function UsersDirectory({
   const title = role === "educator" ? "Educators" : role === "parent" ? "Parents" : "Users";
   const subtitle =
     role === "educator"
-      ? "Teaching staff at Harborview Learning Center."
+      ? `Teaching staff at ${schoolName}.`
       : role === "parent"
-        ? "Parents and guardians connected to this campus."
-        : "Educators and parents for this school.";
+        ? `Parents and guardians at ${schoolName}.`
+        : `Educators and parents at ${schoolName}.`;
 
   return (
     <div className="admin-content" style={{ maxWidth: "1200px" }}>
@@ -100,6 +108,8 @@ export function UsersDirectory({
       <PeopleTable
         people={visiblePeople}
         emptyLabel={query.trim() ? "No people match that search." : "No educators or parents are registered yet."}
+        onEdit={openEditUser}
+        onDelete={openDeleteUser}
       />
 
       {isAddOpen ? (
@@ -116,7 +126,7 @@ export function UsersDirectory({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-header">
-              <h3>Create User Account</h3>
+              <h3>{editingPerson ? "Edit User Account" : "Create User Account"}</h3>
               <button className="drawer-close" type="button" onClick={closeAddUser} aria-label="Close modal">
                 <X size={16} />
               </button>
@@ -134,6 +144,80 @@ export function UsersDirectory({
                   overflowY: "auto",
                 }}
               >
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "4px 0 6px",
+                  }}
+                >
+                  <label
+                    htmlFor="school-user-avatar"
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "100px",
+                      height: "100px",
+                      borderRadius: "50%",
+                      border: "2px dashed var(--admin-border-strong)",
+                      background: form.avatar
+                        ? `url(${form.avatar}) center/cover no-repeat`
+                        : "var(--admin-surface-subtle)",
+                      cursor: "pointer",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    title="Click to upload user avatar"
+                  >
+                    {!form.avatar ? (
+                      <>
+                        <UploadCloud size={26} color="var(--admin-muted)" />
+                        <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--admin-muted)", marginTop: "4px" }}>
+                          Upload Avatar
+                        </span>
+                      </>
+                    ) : (
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background: "rgba(0, 0, 0, 0.45)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Change
+                      </div>
+                    )}
+                    <input
+                      id="school-user-avatar"
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (!file) return;
+                        void readImageFile(file)
+                          .then((avatar) => setForm((current) => ({ ...current, avatar })))
+                          .catch((error: unknown) => {
+                            setFormError(error instanceof Error ? error.message : "Could not read that image.");
+                          });
+                      }}
+                    />
+                  </label>
+                  <span style={{ fontSize: "12px", color: "var(--admin-muted)" }}>Click to upload user avatar</span>
+                </div>
                 <div className="form-group">
                   <label htmlFor="school-user-firstname">Firstname</label>
                   <input
@@ -165,24 +249,35 @@ export function UsersDirectory({
                     placeholder="user@school.edu"
                   />
                 </div>
-                {form.role === "Educator" ? (
-                  <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-                    <label htmlFor="school-user-password">Password</label>
-                    <input
-                      id="school-user-password"
-                      type="password"
-                      required
-                      value={form.password}
-                      onChange={(event) => setForm({ ...form, password: event.target.value })}
-                      placeholder="Create a temporary password"
-                    />
-                  </div>
-                ) : null}
+                <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+                  <label htmlFor="school-user-password">
+                    {form.role === "Parent"
+                      ? "Parent portal password"
+                      : editingPerson
+                        ? "New password"
+                        : "Password"}
+                  </label>
+                  <input
+                    id="school-user-password"
+                    type="password"
+                    required={form.role === "Educator" && !editingPerson}
+                    value={form.password}
+                    onChange={(event) => setForm({ ...form, password: event.target.value })}
+                    placeholder={
+                      form.role === "Parent"
+                        ? "Optional. Lets this parent sign in at /parents"
+                        : editingPerson
+                          ? "Leave blank to keep the current password"
+                          : "Create a temporary password"
+                    }
+                  />
+                </div>
                 <div className="form-group">
                   <label htmlFor="school-user-role">Select Role</label>
                   <select
                     id="school-user-role"
                     value={form.role}
+                    disabled={Boolean(editingPerson)}
                     onChange={(event) => setForm({ ...form, role: event.target.value as CampusPerson["role"] })}
                   >
                     <option value="Educator">Educator</option>
@@ -212,10 +307,64 @@ export function UsersDirectory({
                   Cancel
                 </button>
                 <button className="add-student-button" type="submit" disabled={isSaving}>
-                  {isSaving ? "Saving…" : "Create User"}
+                  {isSaving ? "Saving…" : editingPerson ? "Save changes" : "Create User"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {personToDelete ? (
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            if (!isDeleting) setPersonToDelete(null);
+          }}
+        >
+          <div className="modal-card" style={{ maxWidth: "440px" }} onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Delete user</h3>
+              <button
+                className="drawer-close"
+                type="button"
+                onClick={() => {
+                  if (!isDeleting) setPersonToDelete(null);
+                }}
+                aria-label="Close modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ gap: "10px" }}>
+              <p style={{ margin: 0, fontSize: "14px", color: "var(--admin-ink)" }}>
+                Delete <strong>{personToDelete.name}</strong>? This removes the account from the directory.
+              </p>
+              {deleteError ? (
+                <p role="alert" style={{ margin: 0, color: "var(--coral)", fontSize: "13px" }}>
+                  {deleteError}
+                </p>
+              ) : null}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="secondary-action-button"
+                type="button"
+                onClick={() => setPersonToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="add-student-button"
+                type="button"
+                style={{ background: "var(--coral)" }}
+                onClick={handleDeleteUser}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting…" : "Delete user"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -223,6 +372,7 @@ export function UsersDirectory({
   );
 
   function openAddUser() {
+    setEditingPerson(null);
     setForm({
       ...emptyForm,
       role: role === "parent" ? "Parent" : "Educator",
@@ -231,9 +381,31 @@ export function UsersDirectory({
     setIsAddOpen(true);
   }
 
+  function openEditUser(person: CampusPerson) {
+    const { firstname, surname } = nameParts(person);
+    setForm({
+      firstname,
+      surname,
+      email: person.email,
+      password: "",
+      role: person.role,
+      status: person.status,
+      avatar: person.avatar ?? "",
+    });
+    setFormError(null);
+    setEditingPerson(person);
+    setIsAddOpen(true);
+  }
+
+  function openDeleteUser(person: CampusPerson) {
+    setDeleteError(null);
+    setPersonToDelete(person);
+  }
+
   function closeAddUser() {
     if (isSaving) return;
     setIsAddOpen(false);
+    setEditingPerson(null);
     setFormError(null);
   }
 
@@ -246,33 +418,97 @@ export function UsersDirectory({
       setFormError("First name, surname, and email are required.");
       return;
     }
-    if (form.role === "Educator" && !form.password.trim()) {
+    if (form.role === "Educator" && !editingPerson && !form.password.trim()) {
       setFormError("A password is required for an educator account.");
       return;
     }
-    if (people.some((person) => person.email.toLowerCase() === email)) {
+    if (form.password.trim() && form.password.trim().length < 8) {
+      setFormError("New password must be at least 8 characters.");
+      return;
+    }
+    if (people.some((person) => person.id !== editingPerson?.id && person.email.toLowerCase() === email)) {
       setFormError("A user with this email already exists.");
       return;
     }
 
     setIsSaving(true);
     setFormError(null);
-    const result = await createSchoolAdminPerson({
-      firstname,
-      surname,
-      email,
-      password: form.password,
-      role: form.role,
-      status: form.status,
-    });
+    const result = editingPerson
+      ? await updateSchoolAdminPerson({
+          id: editingPerson.id,
+          firstname,
+          surname,
+          email,
+          password: form.password,
+          role: form.role,
+          status: form.status,
+          avatar: form.avatar,
+        })
+      : await createSchoolAdminPerson({
+          firstname,
+          surname,
+          email,
+          password: form.password,
+          role: form.role,
+          status: form.status,
+          avatar: form.avatar,
+        });
     setIsSaving(false);
     if (!result.ok) {
       setFormError(result.error);
       return;
     }
+    if (editingPerson) {
+      const initials = `${firstname[0] ?? ""}${surname[0] ?? ""}`.toUpperCase() || editingPerson.initials;
+      setPeople((current) =>
+        current.map((person) =>
+          person.id === editingPerson.id
+            ? {
+                ...person,
+                firstname,
+                surname,
+                name: `${firstname} ${surname}`.trim(),
+                email,
+                initials,
+                status: form.status,
+                avatar: form.avatar || undefined,
+              }
+            : person,
+        ),
+      );
+    }
     setIsAddOpen(false);
+    setEditingPerson(null);
     router.refresh();
   }
+
+  async function handleDeleteUser() {
+    if (!personToDelete || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteSchoolAdminPerson({ id: personToDelete.id, role: personToDelete.role });
+      if (!result.ok) {
+        setDeleteError(result.error);
+        return;
+      }
+      setPeople((current) => current.filter((person) => person.id !== personToDelete.id));
+      setPersonToDelete(null);
+      router.refresh();
+    } catch {
+      setDeleteError("Could not delete this user. Try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+}
+
+function nameParts(person: CampusPerson) {
+  if (person.firstname || person.surname) {
+    return { firstname: person.firstname ?? "", surname: person.surname ?? "" };
+  }
+  const [firstname, ...rest] = person.name.split(" ");
+  return { firstname: firstname ?? "", surname: rest.join(" ") };
 }
 
 function RoleTab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
@@ -283,7 +519,17 @@ function RoleTab({ href, active, children }: { href: string; active: boolean; ch
   );
 }
 
-function PeopleTable({ people, emptyLabel }: { people: CampusPerson[]; emptyLabel: string }) {
+function PeopleTable({
+  people,
+  emptyLabel,
+  onEdit,
+  onDelete,
+}: {
+  people: CampusPerson[];
+  emptyLabel: string;
+  onEdit: (person: CampusPerson) => void;
+  onDelete: (person: CampusPerson) => void;
+}) {
   return (
     <section className="dashboard-panel" style={{ padding: 0, overflow: "hidden" }}>
       <div className="student-table-wrap" style={{ border: "none" }}>
@@ -295,12 +541,13 @@ function PeopleTable({ people, emptyLabel }: { people: CampusPerson[]; emptyLabe
               <th scope="col">Detail</th>
               <th scope="col">Status</th>
               <th scope="col">Last active</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
             {people.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: "center", padding: "36px", color: "var(--admin-muted)" }}>
+                <td colSpan={6} style={{ textAlign: "center", padding: "36px", color: "var(--admin-muted)" }}>
                   {emptyLabel}
                 </td>
               </tr>
@@ -309,7 +556,11 @@ function PeopleTable({ people, emptyLabel }: { people: CampusPerson[]; emptyLabe
                 <tr key={person.id}>
                   <td>
                     <div className="student-cell">
-                      <span className={`student-avatar avatar-${person.avatarColor}`}>{person.initials}</span>
+                      {person.avatar ? (
+                        <img className="student-avatar" src={person.avatar} alt="" />
+                      ) : (
+                        <span className={`student-avatar avatar-${person.avatarColor}`}>{person.initials}</span>
+                      )}
                       <span className="student-info-text">
                         <strong>{person.name}</strong>
                         <small>{person.email}</small>
@@ -333,6 +584,21 @@ function PeopleTable({ people, emptyLabel }: { people: CampusPerson[]; emptyLabe
                     </span>
                   </td>
                   <td className="update-time">{person.lastActive}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <button className="row-action-btn" type="button" onClick={() => onEdit(person)}>
+                        Edit
+                      </button>
+                      <button
+                        className="row-action-btn"
+                        type="button"
+                        style={{ color: "var(--coral)" }}
+                        onClick={() => onDelete(person)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}

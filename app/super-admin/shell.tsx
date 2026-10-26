@@ -7,6 +7,7 @@ import { Building2, Layers, Settings, Users } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { ProfileAvatar } from "../admin/profile-avatar";
 import type { SidebarProfile } from "@/lib/sidebar-profile";
+import { PageLoader } from "../page-loader";
 import "../admin/admin.css";
 
 type SuperAdminShellValue = {
@@ -38,20 +39,7 @@ export function ProfileSync({ profile }: { profile: SidebarProfile }) {
 }
 
 export function WorkspaceContentFallback({ title }: { title: string }) {
-  return (
-    <main className="admin-main">
-      <header className="admin-topbar">
-        <div className="breadcrumb">
-          <span>Super Admin</span>
-          <b>/</b>
-          <strong>{title}</strong>
-        </div>
-      </header>
-      <div className="admin-content">
-        <p className="dashboard-subtitle">Loading {title.toLowerCase()}…</p>
-      </div>
-    </main>
-  );
+  return <PageLoader label={title.toLowerCase()} frame={{ section: "Super Admin", title }} />;
 }
 
 export function SuperAdminShell({ children }: { children: React.ReactNode }) {

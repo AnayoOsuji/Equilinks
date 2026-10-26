@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import type { Role, UserStatus } from "@prisma/client";
-import { requireRoles } from "@/lib/auth";
+import { requireRoles, requireSuperAdmin } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 export interface AdminUser {
@@ -25,6 +25,7 @@ const roleLabels: Record<Role, AdminUser["role"]> = {
   EDUCATOR: "Educator",
   SPECIALIST: "Specialist",
   STUDENT: "Student",
+  PARENT: "Parent",
 };
 
 const statusLabels: Record<UserStatus, AdminUser["status"]> = {
@@ -142,7 +143,9 @@ export async function getAdminUsers(options?: {
   includeParents?: boolean;
 }): Promise<AdminUser[]> {
   await connection();
-  if (options?.includeSuperAdmins || options?.includeParents) {
+  if (options?.includeSuperAdmins) {
+    await requireSuperAdmin("/super-admin/users");
+  } else if (options?.includeParents) {
     await requireRoles(["EQUILINKS_ADMIN", "SUPER_ADMIN"], "/admin/users");
   }
 

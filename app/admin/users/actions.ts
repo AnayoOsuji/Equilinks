@@ -4,7 +4,9 @@ import { Prisma } from "@prisma/client";
 import type { Role, UserStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { storedAvatar } from "@/lib/avatar";
 import { hashPassword } from "@/lib/password";
+import { requireRoles } from "@/lib/auth";
 import { parentSelect, toAdminParent, toAdminUser, userSelect, type AdminUser } from "@/lib/admin-users";
 
 type AccountRole = Exclude<AdminUser["role"], "Parent">;
@@ -28,6 +30,15 @@ const statusValues: Record<AdminUser["status"], UserStatus> = {
   Inactive: "INACTIVE",
 };
 
+const superAdminDenied = {
+  ok: false as const,
+  error: "Only a super admin can create or change a super admin account.",
+};
+
+async function requireUserManager() {
+  return requireRoles(["EQUILINKS_ADMIN", "SUPER_ADMIN"], "/admin/users");
+}
+
 export type CreateAdminUserInput = {
   firstname: string;
   surname: string;
@@ -44,6 +55,7 @@ export type CreateAdminUserResult =
   | { ok: false; error: string };
 
 export async function createAdminUser(input: CreateAdminUserInput): Promise<CreateAdminUserResult> {
+  const actor = await requireUserManager();
   const firstname = input.firstname.trim();
   const surname = input.surname.trim();
   const email = input.email.trim().toLowerCase();
@@ -56,6 +68,11 @@ export async function createAdminUser(input: CreateAdminUserInput): Promise<Crea
     return { ok: false, error: "Choose a valid role and status." };
   }
   const role = roleValues[input.role];
+  if (role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") return superAdminDenied;
+  const avatar = storedAvatar(input.avatar);
+  if (avatar === "too-large") {
+    return { ok: false, error: "That photo is too large. Choose a smaller image." };
+  }
 
   try {
     const created = await prisma.user.create({
@@ -64,7 +81,7 @@ export async function createAdminUser(input: CreateAdminUserInput): Promise<Crea
         surname,
         email,
         password: await hashPassword(input.password),
-        avatar: input.avatar?.trim() ? input.avatar : null,
+        avatar,
         role,
         status,
         schoolId: await resolveSchoolId(input.school),
@@ -108,6 +125,7 @@ async function resolveSchoolId(schoolName: string) {
 }
 
 export async function updateAdminUser(input: UpdateAdminUserInput): Promise<CreateAdminUserResult> {
+  const actor = await requireUserManager();
   const firstname = input.firstname.trim();
   const surname = input.surname.trim();
   const email = input.email.trim().toLowerCase();
@@ -120,10 +138,22 @@ export async function updateAdminUser(input: UpdateAdminUserInput): Promise<Crea
   if (!status || (input.role !== "Parent" && !isAccountRole(input.role))) {
     return { ok: false, error: "Choose a valid role and status." };
   }
+  const existing = await prisma.user.findUnique({ where: { id: input.id }, select: { role: true } });
+  const role = input.role === "Parent" ? null : roleValues[input.role];
+  if (
+    actor.role !== "SUPER_ADMIN" &&
+    (existing?.role === "SUPER_ADMIN" || role === "SUPER_ADMIN")
+  ) {
+    return superAdminDenied;
+  }
   if (input.role === "Parent") {
     return updateParentAccount(input, status);
   }
-  const role = roleValues[input.role];
+  if (!role) return { ok: false, error: "Choose a valid role and status." };
+  const avatar = input.avatar === undefined ? undefined : storedAvatar(input.avatar);
+  if (avatar === "too-large") {
+    return { ok: false, error: "That photo is too large. Choose a smaller image." };
+  }
 
   try {
     const updated = await prisma.user.update({
@@ -136,9 +166,7 @@ export async function updateAdminUser(input: UpdateAdminUserInput): Promise<Crea
         status,
         schoolId: await resolveSchoolId(input.school),
         ...(password ? { password: await hashPassword(password) } : {}),
-        ...(input.avatar !== undefined
-          ? { avatar: input.avatar.trim() ? input.avatar : null }
-          : {}),
+        ...(avatar !== undefined ? { avatar } : {}),
       },
       select: userSelect,
     });
@@ -160,6 +188,10 @@ async function updateParentAccount(
   input: UpdateAdminUserInput,
   status: UserStatus,
 ): Promise<CreateAdminUserResult> {
+  const avatar = input.avatar === undefined ? undefined : storedAvatar(input.avatar);
+  if (avatar === "too-large") {
+    return { ok: false, error: "That photo is too large. Choose a smaller image." };
+  }
   try {
     const updated = await prisma.parent.update({
       where: { id: input.id },
@@ -169,9 +201,7 @@ async function updateParentAccount(
         email: input.email.trim().toLowerCase(),
         status,
         schoolId: await resolveSchoolId(input.school),
-        ...(input.avatar !== undefined
-          ? { avatar: input.avatar.trim() ? input.avatar : null }
-          : {}),
+        ...(avatar !== undefined ? { avatar } : {}),
       },
       select: parentSelect,
     });
@@ -197,6 +227,7 @@ function revalidateUserPaths() {
 }
 
 export async function deleteAdminUser(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await requireUserManager();
   if (!id) return { ok: false, error: "Choose a user to delete." };
 
   try {
@@ -204,6 +235,8 @@ export async function deleteAdminUser(id: string): Promise<{ ok: true } | { ok: 
     if (parent) {
       await prisma.parent.delete({ where: { id } });
     } else {
+      const existing = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+      if (existing?.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") return superAdminDenied;
       await prisma.user.delete({ where: { id } });
     }
     revalidateUserPaths();

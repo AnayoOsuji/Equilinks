@@ -1559,6 +1559,7 @@ body.mode-high-contrast {
   justify-content: center;
   font-weight: 700;
   font-size: 12px;
+  object-fit: cover;
   flex-shrink: 0;
 }
 
@@ -2107,8 +2108,9 @@ body.mode-high-contrast {
 
 .school-admin-campus {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   padding: 10px 12px;
   border-radius: var(--radius-md);
@@ -2116,10 +2118,65 @@ body.mode-high-contrast {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.school-admin-campus > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.school-admin-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.school-admin-logo-fallback {
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.school-admin-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.school-admin-identity img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.school-admin-identity span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.school-admin-settings .school-admin-logo {
+  justify-self: start;
+  margin-bottom: 4px;
+  background: var(--admin-surface-subtle);
+  border: 1px solid var(--admin-border);
+}
+
 .school-admin-campus strong {
   color: #ffffff;
   font-size: 13px;
   font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .school-admin-campus small {

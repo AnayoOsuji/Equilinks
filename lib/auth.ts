@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { dashboardForRole, safeDashboardPath, type SessionRole } from "@/lib/auth-paths";
+import { MAX_AVATAR_LENGTH } from "@/lib/avatar";
 import prisma from "@/lib/prisma";
 import { decryptSession, SESSION_COOKIE } from "@/lib/session-token";
 
@@ -22,17 +23,26 @@ export const getSignedInUser = cache(async (): Promise<SignedInUser | null> => {
   const session = await decryptSession(token);
   if (!session) return null;
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      id: true,
-      firstname: true,
-      surname: true,
-      avatar: true,
-      role: true,
-      status: true,
-    },
-  });
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      firstname: string;
+      surname: string;
+      avatar: string | null;
+      role: SessionRole;
+      status: string;
+    }>
+  >`
+    SELECT id, firstname, surname, role::text AS role, status::text AS status,
+      CASE
+        WHEN avatar IS NULL OR octet_length(avatar) > ${MAX_AVATAR_LENGTH} THEN NULL
+        ELSE avatar
+      END AS avatar
+    FROM users
+    WHERE id = ${session.userId}
+    LIMIT 1
+  `;
+  const user = rows[0];
 
   if (!user || user.status !== "ACTIVE") return null;
 

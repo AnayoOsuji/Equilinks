@@ -1,12 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, BookOpen, GraduationCap, Layers, Menu, Search, Settings, Users } from "lucide-react";
 import { signOut } from "@/app/login/actions";
-import { campus } from "./data";
+import { ProfileAvatar, TopbarAvatar } from "../admin/profile-avatar";
+import type { SidebarProfile } from "@/lib/sidebar-profile";
 import "../admin/admin.css";
+
+type NavCounts = {
+  userCount: number;
+  studentCount: number;
+  classCount: number;
+};
+
+export type SchoolIdentity = {
+  name: string;
+  type: string;
+  logo?: string;
+};
+
+type SchoolAdminShellValue = {
+  school: SchoolIdentity | null;
+  setProfile: (profile: SidebarProfile) => void;
+  setCounts: (counts: NavCounts) => void;
+  setSchool: (school: SchoolIdentity) => void;
+};
+
+const SchoolAdminShellContext = createContext<SchoolAdminShellValue | null>(null);
+
+function useSchoolAdminShell() {
+  return useContext(SchoolAdminShellContext);
+}
+
+export function useSchoolAdminSchool() {
+  return useSchoolAdminShell()?.school ?? null;
+}
+
+const emptyProfile: SidebarProfile = {
+  name: "",
+  initials: "",
+  roleLabel: "School Admin",
+};
+
+export function ProfileSync({ profile }: { profile: SidebarProfile }) {
+  const setProfile = useSchoolAdminShell()?.setProfile;
+
+  useEffect(() => {
+    setProfile?.(profile);
+  }, [setProfile, profile]);
+
+  return null;
+}
+
+export function SchoolSync({ school }: { school: SchoolIdentity }) {
+  const setSchool = useSchoolAdminShell()?.setSchool;
+
+  useEffect(() => {
+    setSchool?.(school);
+  }, [setSchool, school]);
+
+  return null;
+}
+
+export function CountsSync({ userCount, studentCount, classCount }: NavCounts) {
+  const setCounts = useSchoolAdminShell()?.setCounts;
+
+  useEffect(() => {
+    setCounts?.({ userCount, studentCount, classCount });
+  }, [setCounts, userCount, studentCount, classCount]);
+
+  return null;
+}
 
 const titles: Record<string, string> = {
   "/school-admin": "Overview",
@@ -18,24 +84,19 @@ const titles: Record<string, string> = {
   "/school-admin/settings": "Settings",
 };
 
-export function SchoolAdminShell({
-  children,
-  userCount,
-  studentCount,
-  classCount,
-}: {
-  children: React.ReactNode;
-  userCount: number;
-  studentCount: number;
-  classCount: number;
-}) {
+export function SchoolAdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [profile, setProfile] = useState<SidebarProfile | null>(null);
+  const [school, setSchool] = useState<SchoolIdentity | null>(null);
+  const [counts, setCounts] = useState<NavCounts | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const usersActive = pathname.startsWith("/school-admin/users");
   const currentTitle = titles[pathname] ?? "Overview";
+  const shownProfile = profile ?? emptyProfile;
 
   return (
+    <SchoolAdminShellContext.Provider value={{ school, setProfile, setCounts, setSchool }}>
     <div className="admin-shell">
       {mobileSidebarOpen ? (
         <div
@@ -62,8 +123,17 @@ export function SchoolAdminShell({
           </Link>
 
           <p className="school-admin-campus">
-            <strong>{campus.name}</strong>
-            <small>{campus.type}</small>
+            {school?.logo ? (
+              <img className="school-admin-logo" src={school.logo} alt="" />
+            ) : (
+              <span className="school-admin-logo school-admin-logo-fallback" aria-hidden="true">
+                {(school?.name ?? "S").trim().charAt(0).toUpperCase() || "S"}
+              </span>
+            )}
+            <span>
+              <strong>{school?.name ?? "Your school"}</strong>
+              <small>{school?.type || "School"}</small>
+            </span>
           </p>
 
           <p className="nav-section-title">WORKSPACE</p>
@@ -84,7 +154,7 @@ export function SchoolAdminShell({
             >
               <BookOpen size={18} />
               <span>Classes</span>
-              <span className="nav-count">{classCount}</span>
+              {counts ? <span className="nav-count">{counts.classCount}</span> : null}
             </Link>
 
             <Link
@@ -94,7 +164,7 @@ export function SchoolAdminShell({
             >
               <Users size={18} />
               <span>Users</span>
-              <span className="nav-count">{userCount}</span>
+              {counts ? <span className="nav-count">{counts.userCount}</span> : null}
             </Link>
 
             <Link
@@ -104,7 +174,7 @@ export function SchoolAdminShell({
             >
               <GraduationCap size={18} />
               <span>Students</span>
-              <span className="nav-count">{studentCount}</span>
+              {counts ? <span className="nav-count">{counts.studentCount}</span> : null}
             </Link>
             <Link
               className={`workspace-link ${pathname.startsWith("/school-admin/settings") ? "is-active" : ""}`}
@@ -119,13 +189,10 @@ export function SchoolAdminShell({
 
         <div className="sidebar-bottom">
           <div className="sidebar-profile">
-            <span className="profile-avatar">
-              JE
-              <span className="profile-avatar-online" title="Online" />
-            </span>
+            <ProfileAvatar profile={shownProfile} />
             <div className="profile-copy">
-              <strong>Jordan Ellis</strong>
-              <small>School Admin</small>
+              <strong>{shownProfile.name || "School Admin"}</strong>
+              <small>{shownProfile.roleLabel}</small>
             </div>
           </div>
           <form action={signOut}>
@@ -175,13 +242,12 @@ export function SchoolAdminShell({
               <span className="notification-dot" />
               <Bell size={18} />
             </button>
-            <span className="topbar-avatar" title="Jordan Ellis">
-              JE
-            </span>
+            {profile ? <TopbarAvatar profile={profile} /> : <span className="topbar-avatar" />}
           </div>
         </header>
         {children}
       </main>
     </div>
+    </SchoolAdminShellContext.Provider>
   );
 }

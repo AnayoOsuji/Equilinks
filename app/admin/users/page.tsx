@@ -15,7 +15,7 @@ export default function UsersPage() {
 async function UsersDirectory() {
   try {
     const [users, schools] = await Promise.all([
-      getAdminUsers({ includeSuperAdmins: true, includeParents: true }),
+      getAdminUsers({ includeParents: true }),
       getSchoolNames(),
     ]);
     return <UsersClient initialUsers={users} schools={schools} />;

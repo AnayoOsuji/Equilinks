@@ -8,6 +8,8 @@ import { ProfileAvatar, TopbarAvatar } from "../profile-avatar";
 import type { SidebarProfile } from "@/lib/sidebar-profile";
 import { useSuperAdminShell } from "@/app/super-admin/shell";
 import { useAdminShell } from "../shell";
+import { PageLoader } from "@/app/page-loader";
+import { readImageFile } from "@/lib/avatar";
 import "../admin.css";
 import {
   Layers,
@@ -419,11 +421,13 @@ export default function SchoolsPage({
                           fontSize: "13.5px",
                         }}
                       >
-                        {isLoadingSchools
-                          ? "Loading schools…"
-                          : searchQuery.trim()
-                            ? "No campuses found matching your search."
-                            : "No schools are registered yet."}
+                        {isLoadingSchools ? (
+                          <PageLoader label="schools" compact />
+                        ) : searchQuery.trim() ? (
+                          "No campuses found matching your search."
+                        ) : (
+                          "No schools are registered yet."
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -673,13 +677,11 @@ export default function SchoolsPage({
                       style={{ display: "none" }}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setNewSchool((prev) => ({ ...prev, logo: reader.result as string }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
+                        e.target.value = "";
+                        if (!file) return;
+                        void readImageFile(file, 512).then((logo) => {
+                          setNewSchool((prev) => ({ ...prev, logo }));
+                        });
                       }}
                     />
                   </label>

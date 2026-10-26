@@ -8,6 +8,7 @@ import { ProfileAvatar, TopbarAvatar } from "../../admin/profile-avatar";
 import type { SidebarProfile } from "@/lib/sidebar-profile";
 import { useSuperAdminShell } from "../shell";
 import { updateSuperAdminPassword, updateSuperAdminProfile, type SuperAdminAccount } from "./actions";
+import { readImageFile } from "@/lib/avatar";
 import "../../admin/admin.css";
 import {
   Layers,
@@ -270,13 +271,12 @@ export default function SuperAdminSettings({
                     style={{ display: "none" }}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
+                      event.target.value = "";
                       if (!file) return;
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setDetails((current) => ({ ...current, avatar: String(reader.result ?? "") }));
+                      void readImageFile(file).then((avatar) => {
+                        setDetails((current) => ({ ...current, avatar }));
                         setDetailsMessage(null);
-                      };
-                      reader.readAsDataURL(file);
+                      });
                     }}
                   />
                 </label>

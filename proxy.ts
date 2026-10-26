@@ -11,7 +11,11 @@ function isProtected(pathname: string) {
     pathname === "/super-admin" ||
     pathname.startsWith("/super-admin/") ||
     pathname === "/home" ||
-    pathname.startsWith("/home/")
+    pathname.startsWith("/home/") ||
+    pathname === "/educator" ||
+    pathname.startsWith("/educator/") ||
+    pathname === "/parents" ||
+    pathname.startsWith("/parents/")
   );
 }
 
@@ -42,5 +46,9 @@ export const config = {
     "/super-admin",
     "/home/:path*",
     "/home",
+    "/educator/:path*",
+    "/educator",
+    "/parents/:path*",
+    "/parents",
   ],
 };

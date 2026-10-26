@@ -7,6 +7,8 @@ export type PersonStatus = "Active" | "Pending Invite" | "Inactive";
 
 export interface CampusPerson {
   id: string;
+  firstname?: string;
+  surname?: string;
   name: string;
   email: string;
   initials: string;
@@ -14,15 +16,20 @@ export interface CampusPerson {
   detail: string;
   status: PersonStatus;
   lastActive: string;
+  avatar?: string;
   avatarColor: "green" | "coral" | "blue" | "amber" | "purple";
 }
 
 export interface CampusStudent {
   id: string;
+  firstname: string;
+  surname: string;
   name: string;
-  email: string;
   initials: string;
   school: string;
+  classId: string | null;
+  avatar?: string;
+  parentIds: string[];
   guardians: string;
   status: PersonStatus;
   lastActive: string;

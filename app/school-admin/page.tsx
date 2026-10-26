@@ -1,17 +1,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowUpRight, GraduationCap, HeartHandshake, Users } from "lucide-react";
-import { getSchoolAdminStudents } from "@/lib/school-admin-users";
-import { activities, campus, educators, parents } from "./data";
+import { getSchoolAdminStudents, getSignedInSchool } from "@/lib/school-admin-users";
+import { activities, educators, parents } from "./data";
+import { PageLoader } from "../page-loader";
 
 export default function SchoolAdminOverview() {
   return (
     <Suspense
-      fallback={
-        <div className="admin-content">
-          <p className="dashboard-subtitle">Loading overview…</p>
-        </div>
-      }
+      fallback={<PageLoader label="overview" />}
     >
       <Overview />
     </Suspense>
@@ -19,8 +16,9 @@ export default function SchoolAdminOverview() {
 }
 
 async function Overview() {
-  const students = await getSchoolAdminStudents();
+  const [students, school] = await Promise.all([getSchoolAdminStudents(), getSignedInSchool()]);
   const active = students.filter((student) => student.status === "Active").length;
+  const schoolName = school.schoolName ?? "your school";
 
   return (
     <div className="admin-content" style={{ maxWidth: "1200px" }}>
@@ -29,7 +27,7 @@ async function Overview() {
           <p className="dashboard-date">OVERVIEW</p>
           <h1>Good morning, Jordan</h1>
           <p className="dashboard-subtitle">
-            Today at {campus.name}: educators, parents, and students in one place.
+            Today at {schoolName}: educators, parents, and students in one place.
           </p>
         </div>
       </section>
@@ -86,8 +84,9 @@ async function Overview() {
               <Users size={17} />
             </span>
           </div>
-          <div className="metric-number" style={{ fontSize: "22px", lineHeight: 1.2 }}>
-            Harborview
+          <div className="metric-number school-admin-identity">
+            {school.schoolLogo ? <img src={school.schoolLogo} alt="" /> : null}
+            <span>{schoolName}</span>
           </div>
           <div className="metric-footer">
             <span className="metric-up">Active</span>
@@ -184,7 +183,7 @@ async function Overview() {
 
       <footer className="dashboard-footer" style={{ borderTop: "1px solid var(--admin-border)", paddingTop: "18px" }}>
         <span>Equilinks School Admin</span>
-        <span>{campus.name}</span>
+        <span>{schoolName}</span>
       </footer>
     </div>
   );

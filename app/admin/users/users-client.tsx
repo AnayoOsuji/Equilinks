@@ -10,6 +10,7 @@ import type { SidebarProfile } from "@/lib/sidebar-profile";
 import { useSuperAdminShell } from "@/app/super-admin/shell";
 import { useAdminShell } from "../shell";
 import { createAdminUser, deleteAdminUser, updateAdminUser } from "./actions";
+import { readImageFile } from "@/lib/avatar";
 import "../admin.css";
 import {
   Layers,
@@ -71,8 +72,10 @@ export default function UsersClient({
     initials: "",
     roleLabel: workspace === "super-admin" ? "Super Admin" : "Equilinks Admin",
   };
-  const [users, setUsers] = useState<AdminUser[]>(initialUsers);
-  const directoryUsers = users;
+  const [users, setUsers] = useState<AdminUser[]>(
+    workspace === "super-admin" ? initialUsers : initialUsers.filter((user) => user.role !== "Super Admin"),
+  );
+  const directoryUsers = users.filter((user) => workspace === "super-admin" || user.role !== "Super Admin");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [selectedSchool, setSelectedSchool] = useState<string>("all");
@@ -761,13 +764,11 @@ export default function UsersClient({
                       style={{ display: "none" }}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setNewUser((prev) => ({ ...prev, avatar: reader.result as string }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
+                        e.target.value = "";
+                        if (!file) return;
+                        void readImageFile(file).then((avatar) => {
+                          setNewUser((prev) => ({ ...prev, avatar }));
+                        });
                       }}
                     />
                   </label>
@@ -877,7 +878,7 @@ export default function UsersClient({
                         <>
                           <option value="School Admin">School Admin</option>
                           <option value="Equilinks Admin">Equilinks Admin</option>
-                          <option value="Super Admin">Super Admin</option>
+                          {workspace === "super-admin" ? <option value="Super Admin">Super Admin</option> : null}
                           <option value="Educator">Educator</option>
                           <option value="Specialist">Specialist</option>
                           <option value="Student">Student</option>

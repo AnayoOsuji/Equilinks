@@ -1,7 +1,9 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { signOut } from "@/app/login/actions";
 import { requireRoles } from "@/lib/auth";
 import type { SessionRole } from "@/lib/auth-paths";
+import { PageLoader } from "../page-loader";
 import "../admin/admin.css";
 
 const ROLE_LABELS: Partial<Record<SessionRole, string>> = {
@@ -14,13 +16,9 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <main className="admin-shell">
-          <div className="admin-main" style={{ marginLeft: 0, width: "100%" }}>
-            <div className="admin-content">
-              <p className="dashboard-subtitle">Loading your dashboard…</p>
-            </div>
-          </div>
-        </main>
+        <div className="admin-shell">
+          <PageLoader label="your dashboard" full />
+        </div>
       }
     >
       <RoleHome />
@@ -30,6 +28,7 @@ export default function HomePage() {
 
 async function RoleHome() {
   const user = await requireRoles(["EDUCATOR", "SPECIALIST", "STUDENT"], "/home");
+  if (user.role === "EDUCATOR") redirect("/educator");
   const role = ROLE_LABELS[user.role] ?? "Account";
 
   return (

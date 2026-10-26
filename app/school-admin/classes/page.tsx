@@ -1,17 +1,12 @@
 import { Suspense } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { getSchoolAdminClasses, getSchoolAdminPeople } from "@/lib/school-admin-users";
+import { PageLoader } from "../../page-loader";
 import { ClassesDirectory } from "./directory";
 
 export default function SchoolAdminClassesPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="admin-content">
-          <p className="dashboard-subtitle">Loading classes…</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<PageLoader label="classes" />}>
       <LoadedClasses />
     </Suspense>
   );

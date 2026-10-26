@@ -15,6 +15,7 @@ enum Role {
   EDUCATOR
   SPECIALIST
   STUDENT
+  PARENT
 }
 
 enum UserStatus {
@@ -40,6 +41,40 @@ enum SchoolStatus {
   ACTIVE
   REVIEW
   INACTIVE
+}
+
+enum EmotionalState {
+  SETTLED
+  JOYFUL
+  ANXIOUS
+  OVERWHELMED
+  WITHDRAWN
+  FRUSTRATED
+}
+
+enum IncidentMood {
+  CALM
+  FOCUSED
+  HAPPY
+  ANXIOUS
+  ELEVATED
+  NEED_BREAK
+}
+
+enum EnergyLevel {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum ActivityContext {
+  MORNING_ARRIVAL
+  READING_CIRCLE
+  GYM_CLASS
+  MATH_STEM
+  LUNCH_RECESS
+  ART_MUSIC
+  BUS_RIDE
 }
 
 model School {
@@ -80,8 +115,12 @@ model User {
   schoolId String?
   school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
 
-  classes        Class[]   @relation("ClassEducator")
+  classes        Class[]            @relation("ClassEducator")
+  checkIns       EmotionalCheckIn[] @relation("EducatorCheckIns")
+  incidents      Incident[]         @relation("EducatorIncidents")
+  homeIncidentReads HomeIncidentRead[]
   studentProfile Student?
+  parentProfile  Parent?            @relation("ParentAccount")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -108,6 +147,11 @@ model Parent {
 
   studentId String?
   student   Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  userId String? @unique
+  user   User?   @relation("ParentAccount", fields: [userId], references: [id], onDelete: SetNull)
+
+  homeIncidents HomeIncident[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -139,7 +183,6 @@ model Student {
   id        String     @id @default(cuid())
   firstname String
   surname   String
-  email     String?    @unique
   avatar    String?
   status    UserStatus @default(ACTIVE)
 
@@ -152,7 +195,10 @@ model Student {
   userId String? @unique
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  parents Parent[]
+  parents       Parent[]
+  checkIns      EmotionalCheckIn[]
+  incidents     Incident[]
+  homeIncidents HomeIncident[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -160,4 +206,78 @@ model Student {
   @@index([schoolId])
   @@index([classId])
   @@map("students")
+}
+
+model EmotionalCheckIn {
+  id         String         @id @default(cuid())
+  state      EmotionalState
+  note       String?
+  recordedAt DateTime       @default(now())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  educatorId String
+  educator   User   @relation("EducatorCheckIns", fields: [educatorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId, recordedAt])
+  @@index([educatorId])
+  @@map("emotional_check_ins")
+}
+
+model Incident {
+  id         String          @id @default(cuid())
+  mood       IncidentMood
+  energy     EnergyLevel
+  activity   ActivityContext
+  recordedAt DateTime        @default(now())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  educatorId String
+  educator   User   @relation("EducatorIncidents", fields: [educatorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId, recordedAt])
+  @@index([educatorId])
+  @@map("incidents")
+}
+
+model HomeIncident {
+  id         String       @id @default(cuid())
+  mood       IncidentMood
+  energy     EnergyLevel?
+  note       String?
+  occurredAt DateTime     @default(now())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  parentId String?
+  parent   Parent? @relation(fields: [parentId], references: [id], onDelete: SetNull)
+
+  reads HomeIncidentRead[]
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId, createdAt])
+  @@map("home_incidents")
+}
+
+model HomeIncidentRead {
+  incidentId String
+  incident   HomeIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  educatorId String
+  educator   User @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+
+  readAt DateTime @default(now())
+
+  @@id([incidentId, educatorId])
+  @@index([educatorId])
+  @@map("home_incident_reads")
 }

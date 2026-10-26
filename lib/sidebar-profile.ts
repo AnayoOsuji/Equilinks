@@ -14,6 +14,7 @@ const roleLabels: Record<SessionRole, string> = {
   EDUCATOR: "Educator",
   SPECIALIST: "Specialist",
   STUDENT: "Student",
+  PARENT: "Parent",
 };
 
 export function sidebarProfile(user: {

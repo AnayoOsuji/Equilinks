@@ -650,6 +650,47 @@ h1 span {
   text-underline-offset: 3px;
 }
 
+.page-loader {
+  min-height: 42vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.page-loader-ring {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 3px solid #e4ebe6;
+  border-top-color: #456d53;
+  animation: page-loader-spin 0.75s linear infinite;
+}
+
+.page-loader p {
+  margin: 0;
+  color: #405650;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.page-loader-compact {
+  min-height: 140px;
+  gap: 12px;
+}
+
+.page-loader-compact .page-loader-ring {
+  width: 28px;
+  height: 28px;
+}
+
+@keyframes page-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

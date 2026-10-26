@@ -1,17 +1,12 @@
 import { Suspense } from "react";
 import { unstable_rethrow } from "next/navigation";
-import { getSchoolAdminClasses, getSchoolAdminStudents } from "@/lib/school-admin-users";
+import { getSchoolAdminClasses, getSchoolAdminPeople, getSchoolAdminStudents } from "@/lib/school-admin-users";
+import { PageLoader } from "../../page-loader";
 import { StudentsDirectory } from "./directory";
 
 export default function SchoolAdminStudentsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="admin-content">
-          <p className="dashboard-subtitle">Loading students…</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<PageLoader label="students" />}>
       <LoadedStudents />
     </Suspense>
   );
@@ -19,8 +14,15 @@ export default function SchoolAdminStudentsPage() {
 
 async function LoadedStudents() {
   try {
-    const [students, classes] = await Promise.all([getSchoolAdminStudents(), getSchoolAdminClasses()]);
-    return <StudentsDirectory students={students} classes={classes} />;
+    const [students, classes, people] = await Promise.all([
+      getSchoolAdminStudents(),
+      getSchoolAdminClasses(),
+      getSchoolAdminPeople(),
+    ]);
+    const guardians = people
+      .filter((person) => person.role === "Parent")
+      .map((person) => ({ id: person.id, name: person.name }));
+    return <StudentsDirectory students={students} classes={classes} guardians={guardians} />;
   } catch (error) {
     unstable_rethrow(error);
     const message =

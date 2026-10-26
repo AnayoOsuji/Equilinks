@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { campus } from "../data";
+import { useSchoolAdminSchool } from "../shell";
 
 export default function SchoolAdminSettingsPage() {
   const [calmMode, setCalmMode] = useState(false);
   const [familyNotes, setFamilyNotes] = useState(true);
   const [saved, setSaved] = useState(false);
+  const school = useSchoolAdminSchool();
+  const schoolName = school?.name ?? "";
 
   return (
     <div className="admin-content" style={{ maxWidth: "760px" }}>
@@ -14,7 +16,9 @@ export default function SchoolAdminSettingsPage() {
         <div>
           <p className="dashboard-date">SETTINGS</p>
           <h1>Settings</h1>
-          <p className="dashboard-subtitle">Campus details and how {campus.name} uses Equilinks.</p>
+          <p className="dashboard-subtitle">
+            Campus details and how {schoolName || "your school"} uses Equilinks.
+          </p>
         </div>
       </section>
 
@@ -25,8 +29,9 @@ export default function SchoolAdminSettingsPage() {
           setSaved(true);
         }}
       >
+        {school?.logo ? <img className="school-admin-logo" src={school.logo} alt="" /> : null}
         <label htmlFor="school-name">School name</label>
-        <input id="school-name" name="school-name" defaultValue={campus.name} />
+        <input id="school-name" name="school-name" key={schoolName} defaultValue={schoolName} />
 
         <label htmlFor="school-email">Campus email</label>
         <input id="school-email" name="school-email" type="email" defaultValue="hello@harborview.edu" />

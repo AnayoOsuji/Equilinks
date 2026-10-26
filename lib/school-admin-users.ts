@@ -2,6 +2,8 @@ import { cache } from "react";
 import { connection } from "next/server";
 import type { ParentRelationship, UserStatus } from "@prisma/client";
 import type { CampusPerson, CampusStudent, PersonStatus } from "@/app/school-admin/data";
+import { displayAvatar, MAX_AVATAR_LENGTH } from "@/lib/avatar";
+import { requireRoles } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 const statusLabels: Record<UserStatus, PersonStatus> = {
@@ -53,18 +55,35 @@ function formatWhen(value: Date | null) {
   }).format(value);
 }
 
+export const getSignedInSchool = cache(async () => {
+  const admin = await requireRoles(["SCHOOL_ADMIN"], "/school-admin");
+  const user = await prisma.user.findUnique({
+    where: { id: admin.id },
+    select: { schoolId: true, school: { select: { name: true, type: true, logo: true } } },
+  });
+  return {
+    schoolId: user?.schoolId ?? null,
+    schoolName: user?.school?.name ?? null,
+    schoolType: user?.school?.type ?? null,
+    schoolLogo: user?.school?.logo ?? null,
+  };
+});
+
 export const getSchoolAdminPeople = cache(async (): Promise<CampusPerson[]> => {
   await connection();
+  const { schoolId } = await getSignedInSchool();
+  if (!schoolId) return [];
 
   const [educators, parents] = await Promise.all([
     prisma.user.findMany({
-      where: { role: "EDUCATOR" },
+      where: { role: "EDUCATOR", schoolId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
         firstname: true,
         surname: true,
         email: true,
+        avatar: true,
         status: true,
         lastActive: true,
         createdAt: true,
@@ -72,12 +91,14 @@ export const getSchoolAdminPeople = cache(async (): Promise<CampusPerson[]> => {
       },
     }),
     prisma.parent.findMany({
+      where: { schoolId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
         firstname: true,
         surname: true,
         email: true,
+        avatar: true,
         status: true,
         studentName: true,
         relationship: true,
@@ -88,11 +109,32 @@ export const getSchoolAdminPeople = cache(async (): Promise<CampusPerson[]> => {
     }),
   ]);
 
+  const oversizedEducators = educators.filter((user) => (user.avatar?.length ?? 0) > MAX_AVATAR_LENGTH);
+  const oversizedParents = parents.filter((parent) => (parent.avatar?.length ?? 0) > MAX_AVATAR_LENGTH);
+  if (oversizedEducators.length || oversizedParents.length) {
+    await Promise.all([
+      oversizedEducators.length
+        ? prisma.user.updateMany({
+            where: { id: { in: oversizedEducators.map((user) => user.id) } },
+            data: { avatar: null },
+          })
+        : Promise.resolve(),
+      oversizedParents.length
+        ? prisma.parent.updateMany({
+            where: { id: { in: oversizedParents.map((parent) => parent.id) } },
+            data: { avatar: null },
+          })
+        : Promise.resolve(),
+    ]);
+  }
+
   const people = [
     ...educators.map((user) => ({
       createdAt: user.createdAt.getTime(),
       person: {
         id: user.id,
+        firstname: user.firstname,
+        surname: user.surname,
         name: `${user.firstname} ${user.surname}`.trim(),
         email: user.email,
         initials: initialsFor(user.firstname, user.surname),
@@ -100,6 +142,7 @@ export const getSchoolAdminPeople = cache(async (): Promise<CampusPerson[]> => {
         detail: user.school?.name ?? "Unassigned",
         status: statusLabels[user.status],
         lastActive: formatWhen(user.lastActive),
+        avatar: displayAvatar(user.avatar),
         avatarColor: colorFor(user.id),
       },
     })),
@@ -107,6 +150,8 @@ export const getSchoolAdminPeople = cache(async (): Promise<CampusPerson[]> => {
       createdAt: parent.createdAt.getTime(),
       person: {
         id: parent.id,
+        firstname: parent.firstname,
+        surname: parent.surname,
         name: `${parent.firstname} ${parent.surname}`.trim(),
         email: parent.email,
         initials: initialsFor(parent.firstname, parent.surname),
@@ -116,6 +161,7 @@ export const getSchoolAdminPeople = cache(async (): Promise<CampusPerson[]> => {
           : relationshipLabels[parent.relationship],
         status: statusLabels[parent.status],
         lastActive: formatWhen(parent.lastCommunication),
+        avatar: displayAvatar(parent.avatar),
         avatarColor: colorFor(parent.id),
       },
     })),
@@ -128,19 +174,24 @@ export type SchoolClassOption = {
   id: string;
   name: string;
   grade: string | null;
+  educatorId: string | null;
   educator: string;
   studentCount: number;
 };
 
 export const getSchoolAdminClasses = cache(async (): Promise<SchoolClassOption[]> => {
   await connection();
+  const { schoolId } = await getSignedInSchool();
+  if (!schoolId) return [];
 
   const classes = await prisma.class.findMany({
+    where: { schoolId },
     orderBy: { name: "asc" },
     select: {
       id: true,
       name: true,
       grade: true,
+      educatorId: true,
       educator: { select: { firstname: true, surname: true } },
       _count: { select: { students: true } },
     },
@@ -150,6 +201,7 @@ export const getSchoolAdminClasses = cache(async (): Promise<SchoolClassOption[]
     id: schoolClass.id,
     name: schoolClass.name,
     grade: schoolClass.grade,
+    educatorId: schoolClass.educatorId,
     educator: schoolClass.educator
       ? `${schoolClass.educator.firstname} ${schoolClass.educator.surname}`.trim()
       : "Unassigned",
@@ -159,18 +211,22 @@ export const getSchoolAdminClasses = cache(async (): Promise<SchoolClassOption[]
 
 export const getSchoolAdminStudents = cache(async (): Promise<CampusStudent[]> => {
   await connection();
+  const { schoolId } = await getSignedInSchool();
+  if (!schoolId) return [];
 
   const students = await prisma.student.findMany({
+    where: { schoolId },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       firstname: true,
       surname: true,
-      email: true,
+      avatar: true,
       status: true,
       createdAt: true,
+      classId: true,
       school: { select: { name: true } },
-      parents: { select: { firstname: true, surname: true } },
+      parents: { select: { id: true, firstname: true, surname: true } },
       user: { select: { lastActive: true } },
     },
   });
@@ -182,10 +238,14 @@ export const getSchoolAdminStudents = cache(async (): Promise<CampusStudent[]> =
 
     return {
       id: student.id,
+      firstname: student.firstname,
+      surname: student.surname,
       name: `${student.firstname} ${student.surname}`.trim(),
-      email: student.email ?? "",
       initials: initialsFor(student.firstname, student.surname),
       school: student.school?.name ?? "Unassigned",
+      classId: student.classId,
+      avatar: displayAvatar(student.avatar),
+      parentIds: student.parents.map((parent) => parent.id),
       guardians: guardians.length > 0 ? guardians.join(", ") : "No guardian linked",
       status: statusLabels[student.status],
       lastActive: formatWhen(student.user?.lastActive ?? student.createdAt),

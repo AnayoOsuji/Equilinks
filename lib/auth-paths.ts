@@ -5,6 +5,7 @@ export const SESSION_ROLES = [
   "EDUCATOR",
   "SPECIALIST",
   "STUDENT",
+  "PARENT",
 ] as const;
 
 export type SessionRole = (typeof SESSION_ROLES)[number];
@@ -13,9 +14,10 @@ const DASHBOARDS: Record<SessionRole, string> = {
   SUPER_ADMIN: "/super-admin",
   EQUILINKS_ADMIN: "/admin",
   SCHOOL_ADMIN: "/school-admin",
-  EDUCATOR: "/home",
+  EDUCATOR: "/educator",
   SPECIALIST: "/home",
   STUDENT: "/home",
+  PARENT: "/parents",
 };
 
 export function isSessionRole(value: unknown): value is SessionRole {
@@ -41,7 +43,11 @@ function canOpen(role: SessionRole, path: string) {
         ? ["/admin"]
         : role === "SCHOOL_ADMIN"
           ? ["/school-admin"]
-          : ["/home"];
+          : role === "EDUCATOR"
+            ? ["/educator"]
+            : role === "PARENT"
+              ? ["/parents"]
+              : ["/home"];
 
   return prefixes.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`) || path.startsWith(`${prefix}?`) || path.startsWith(`${prefix}#`),

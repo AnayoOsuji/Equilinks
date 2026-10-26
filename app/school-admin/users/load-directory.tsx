@@ -1,17 +1,12 @@
 import { Suspense } from "react";
 import { unstable_rethrow } from "next/navigation";
-import { getSchoolAdminPeople } from "@/lib/school-admin-users";
+import { getSchoolAdminPeople, getSignedInSchool } from "@/lib/school-admin-users";
+import { PageLoader } from "../../page-loader";
 import { UsersDirectory } from "./directory";
 
 export function SchoolUsersPage({ role }: { role: "all" | "educator" | "parent" }) {
   return (
-    <Suspense
-      fallback={
-        <div className="admin-content">
-          <p className="dashboard-subtitle">Loading users…</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<PageLoader label="users" />}>
       <LoadedUsers role={role} />
     </Suspense>
   );
@@ -19,8 +14,8 @@ export function SchoolUsersPage({ role }: { role: "all" | "educator" | "parent" 
 
 async function LoadedUsers({ role }: { role: "all" | "educator" | "parent" }) {
   try {
-    const people = await getSchoolAdminPeople();
-    return <UsersDirectory role={role} people={people} />;
+    const [people, school] = await Promise.all([getSchoolAdminPeople(), getSignedInSchool()]);
+    return <UsersDirectory role={role} people={people} schoolName={school.schoolName ?? "your school"} />;
   } catch (error) {
     unstable_rethrow(error);
     const message =
