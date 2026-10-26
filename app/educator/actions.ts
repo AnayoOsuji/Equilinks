@@ -9,7 +9,14 @@ import {
   type HomeIncidentNotification,
 } from "@/lib/educator-roster";
 import { emotionalStateToEnum, isEmotionalStateLabel, type EmotionalStateLabel } from "@/lib/emotional-state";
-import { isActivityContext, isEnergyLevel, isIncidentMood } from "@/lib/incident";
+import {
+  isActivityContext,
+  isEnergyLevel,
+  isIncidentMood,
+  type ActivityContextId,
+  type EnergyLevelId,
+  type IncidentMoodId,
+} from "@/lib/incident";
 import prisma from "@/lib/prisma";
 
 export async function recordEmotionalState(input: {
@@ -76,6 +83,88 @@ export async function recordIncident(input: {
 
   revalidatePath("/educator/students");
   return { ok: true, recordedAt: incident.recordedAt.toISOString() };
+}
+
+export type StudentIncidentItem = {
+  id: string;
+  source: "school" | "home";
+  mood: IncidentMoodId;
+  energy: EnergyLevelId | null;
+  activity: ActivityContextId | null;
+  note: string | null;
+  recordedAt: string;
+  reporter: string;
+};
+
+export async function loadStudentIncidents(
+  studentId: string,
+): Promise<{ ok: true; incidents: StudentIncidentItem[] } | { ok: false; error: string }> {
+  const educator = await requireRoles(["EDUCATOR"], "/educator/students");
+  const id = studentId.trim();
+  const allowed = await educatorCanAccessStudent(educator.id, id);
+  if (!allowed) return { ok: false, error: "That student is not in your classroom." };
+
+  const since = new Date();
+  since.setDate(since.getDate() - 40);
+
+  const [school, home] = await Promise.all([
+    prisma.incident.findMany({
+      where: { studentId: id, recordedAt: { gte: since } },
+      orderBy: { recordedAt: "desc" },
+      select: {
+        id: true,
+        mood: true,
+        energy: true,
+        activity: true,
+        recordedAt: true,
+        educator: { select: { firstname: true, surname: true } },
+      },
+    }),
+    prisma.homeIncident.findMany({
+      where: { studentId: id, occurredAt: { gte: since } },
+      orderBy: { occurredAt: "desc" },
+      select: {
+        id: true,
+        mood: true,
+        energy: true,
+        note: true,
+        occurredAt: true,
+        parent: { select: { firstname: true, surname: true } },
+      },
+    }),
+  ]);
+
+  if (home.length > 0) {
+    await prisma.homeIncidentRead.createMany({
+      data: home.map((item) => ({ incidentId: item.id, educatorId: educator.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  const incidents: StudentIncidentItem[] = [
+    ...school.map((item) => ({
+      id: item.id,
+      source: "school" as const,
+      mood: item.mood,
+      energy: item.energy,
+      activity: item.activity,
+      note: null,
+      recordedAt: item.recordedAt.toISOString(),
+      reporter: `${item.educator.firstname} ${item.educator.surname}`.trim(),
+    })),
+    ...home.map((item) => ({
+      id: item.id,
+      source: "home" as const,
+      mood: item.mood,
+      energy: item.energy,
+      activity: null,
+      note: item.note,
+      recordedAt: item.occurredAt.toISOString(),
+      reporter: item.parent ? `${item.parent.firstname} ${item.parent.surname}`.trim() : "A parent",
+    })),
+  ].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+
+  return { ok: true, incidents };
 }
 
 export async function loadNotifications(): Promise<HomeIncidentNotification[]> {

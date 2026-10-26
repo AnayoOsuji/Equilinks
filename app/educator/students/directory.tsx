@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
-import { recordIncident } from "../actions";
+import { loadStudentIncidents, recordIncident, type StudentIncidentItem } from "../actions";
 import type { EducatorDirectoryStudent } from "@/lib/educator-roster";
 import {
   ACTIVITY_CONTEXTS,
@@ -23,6 +23,11 @@ export function EducatorStudents({ students }: { students: EducatorDirectoryStud
   const [activity, setActivity] = useState<ActivityContextId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [viewing, setViewing] = useState<EducatorDirectoryStudent | null>(null);
+  const [range, setRange] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [history, setHistory] = useState<StudentIncidentItem[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const visible = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return students;
@@ -46,6 +51,40 @@ export function EducatorStudents({ students }: { students: EducatorDirectoryStud
     if (isSaving) return;
     setSelected(null);
   };
+
+  const openHistory = async (student: EducatorDirectoryStudent) => {
+    setViewing(student);
+    setRange("daily");
+    setHistory([]);
+    setHistoryError(null);
+    setIsLoadingHistory(true);
+    try {
+      const result = await loadStudentIncidents(student.id);
+      if (!result.ok) {
+        setHistoryError(result.error);
+        return;
+      }
+      setHistory(result.incidents);
+    } catch {
+      setHistoryError("Could not load incidents. Try again.");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const rangeStart = (value: "daily" | "weekly" | "monthly") => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    if (value === "weekly") {
+      const day = start.getDay();
+      start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+    }
+    if (value === "monthly") start.setDate(1);
+    return start;
+  };
+
+  const visibleHistory = history.filter((item) => new Date(item.recordedAt) >= rangeStart(range));
+  const rangeLabel = range === "daily" ? "today" : range === "weekly" ? "this week" : "this month";
 
   const save = async () => {
     if (!selected || isSaving) return;
@@ -161,9 +200,14 @@ export function EducatorStudents({ students }: { students: EducatorDirectoryStud
                       </span>
                     </td>
                     <td>
-                      <button className="add-student-button" type="button" onClick={() => openIncident(student)}>
-                        Log incident
-                      </button>
+                      <div className="row-actions">
+                        <button className="add-student-button" type="button" onClick={() => openIncident(student)}>
+                          Log incident
+                        </button>
+                        <button className="incident-view-button" type="button" onClick={() => openHistory(student)}>
+                          View incidents
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -172,6 +216,101 @@ export function EducatorStudents({ students }: { students: EducatorDirectoryStud
           </table>
         </div>
       </section>
+
+      {viewing ? (
+        <div className="modal-backdrop" onClick={() => setViewing(null)}>
+          <div
+            className="modal-card incident-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="incident-history-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <h3 id="incident-history-title">Incidents for {viewing.name}</h3>
+                <p className="dashboard-subtitle">
+                  {isLoadingHistory
+                    ? "Loading incidents…"
+                    : `${visibleHistory.length} ${visibleHistory.length === 1 ? "incident" : "incidents"} ${rangeLabel}`}
+                </p>
+              </div>
+              <button className="drawer-close" type="button" onClick={() => setViewing(null)} aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="emotion-filters" role="tablist" aria-label="Incident range">
+                {(
+                  [
+                    ["daily", "Daily"],
+                    ["weekly", "Weekly"],
+                    ["monthly", "Monthly"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    className={`emotion-filter${range === value ? " is-active" : ""}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={range === value}
+                    onClick={() => setRange(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {historyError ? (
+                <p className="incident-error" role="alert">
+                  {historyError}
+                </p>
+              ) : isLoadingHistory ? (
+                <p className="incident-history-empty">Loading incidents…</p>
+              ) : visibleHistory.length === 0 ? (
+                <p className="incident-history-empty">No incidents {rangeLabel}.</p>
+              ) : (
+                <ul className="incident-history">
+                  {visibleHistory.map((item) => {
+                    const itemMood = INCIDENT_MOODS.find((option) => option.id === item.mood);
+                    const itemEnergy = ENERGY_LEVELS.find((option) => option.id === item.energy);
+                    const itemActivity = ACTIVITY_CONTEXTS.find((option) => option.id === item.activity);
+                    return (
+                      <li key={`${item.source}-${item.id}`}>
+                        <span className="incident-history-emoji" aria-hidden="true">
+                          {itemMood?.emoji ?? "📝"}
+                        </span>
+                        <div>
+                          <strong>
+                            {itemMood?.label ?? "Incident"}
+                            <span className={`incident-source incident-source-${item.source}`}>
+                              {item.source === "home" ? "Home" : "School"}
+                            </span>
+                          </strong>
+                          <p>
+                            {itemEnergy ? `${itemEnergy.label} energy` : "Energy not recorded"}
+                            {itemActivity ? ` · ${itemActivity.label}` : ""}
+                          </p>
+                          {item.note ? <p>{item.note}</p> : null}
+                          <small>
+                            {new Intl.DateTimeFormat("en-US", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            }).format(new Date(item.recordedAt))}
+                            {item.reporter ? ` · ${item.reporter}` : ""}
+                          </small>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selected ? (
         <div className="modal-backdrop" onClick={closeIncident}>
